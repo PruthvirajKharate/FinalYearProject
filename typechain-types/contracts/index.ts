@@ -5,7 +5,6 @@ import type * as lendingPoolSol from "./LendingPool.sol";
 export type { lendingPoolSol };
 import type * as mockAggregatorSol from "./MockAggregator.sol";
 export type { mockAggregatorSol };
-export type { Lock } from "./Lock";
 export type { RupeeToken } from "./RupeeToken";
 export type { USDToken } from "./USDToken";
 export type { YenToken } from "./YenToken";

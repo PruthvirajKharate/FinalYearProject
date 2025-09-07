@@ -74,9 +74,13 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.LendingPool__factory>;
     getContractFactory(
-      name: "Lock",
+      name: "AggregatorV3Interface",
       signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.Lock__factory>;
+    ): Promise<Contracts.AggregatorV3Interface__factory>;
+    getContractFactory(
+      name: "MockAggregator",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.MockAggregator__factory>;
     getContractFactory(
       name: "YenToken",
       signerOrOptions?: ethers.Signer | FactoryOptions
@@ -170,10 +174,15 @@ declare module "hardhat/types/runtime" {
       signer?: ethers.Signer
     ): Promise<Contracts.LendingPool>;
     getContractAt(
-      name: "Lock",
+      name: "AggregatorV3Interface",
       address: string | ethers.Addressable,
       signer?: ethers.Signer
-    ): Promise<Contracts.Lock>;
+    ): Promise<Contracts.AggregatorV3Interface>;
+    getContractAt(
+      name: "MockAggregator",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.MockAggregator>;
     getContractAt(
       name: "YenToken",
       address: string | ethers.Addressable,
@@ -256,9 +265,13 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.LendingPool>;
     deployContract(
-      name: "Lock",
+      name: "AggregatorV3Interface",
       signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.Lock>;
+    ): Promise<Contracts.AggregatorV3Interface>;
+    deployContract(
+      name: "MockAggregator",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.MockAggregator>;
     deployContract(
       name: "YenToken",
       signerOrOptions?: ethers.Signer | DeployContractOptions
@@ -352,10 +365,15 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.LendingPool>;
     deployContract(
-      name: "Lock",
+      name: "AggregatorV3Interface",
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.Lock>;
+    ): Promise<Contracts.AggregatorV3Interface>;
+    deployContract(
+      name: "MockAggregator",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.MockAggregator>;
     deployContract(
       name: "YenToken",
       args: any[],

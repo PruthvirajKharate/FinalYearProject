@@ -36,8 +36,8 @@ export type { AggregatorV3Interface } from "./contracts/LendingPool.sol/Aggregat
 export { AggregatorV3Interface__factory } from "./factories/contracts/LendingPool.sol/AggregatorV3Interface__factory";
 export type { LendingPool } from "./contracts/LendingPool.sol/LendingPool";
 export { LendingPool__factory } from "./factories/contracts/LendingPool.sol/LendingPool__factory";
-export type { Lock } from "./contracts/Lock";
-export { Lock__factory } from "./factories/contracts/Lock__factory";
+export type { MockAggregator } from "./contracts/MockAggregator.sol/MockAggregator";
+export { MockAggregator__factory } from "./factories/contracts/MockAggregator.sol/MockAggregator__factory";
 export type { YenToken } from "./contracts/MockAggregator.sol/YenToken";
 export { YenToken__factory } from "./factories/contracts/MockAggregator.sol/YenToken__factory";
 export type { RupeeToken } from "./contracts/RupeeToken";
