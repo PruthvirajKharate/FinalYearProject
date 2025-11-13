@@ -15,12 +15,16 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
+    /* This is the setting you probably intended */
+    "isolatedModules": true,
+
     /* Linting */
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true,
+
+    /* This line is very strict. Remove it if you have issues with CSS imports. */
     "noUncheckedSideEffectImports": true
   },
   "include": ["src"]
