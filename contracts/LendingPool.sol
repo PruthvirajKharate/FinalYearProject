@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.20;
+pragma solidity ^0.8.20;
 
 /*
   Production-ish MVP LendingPool
@@ -17,6 +17,7 @@ pragma solidity 0.8.20;
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 interface AggregatorV3Interface {
     function decimals() external view returns (uint8);
@@ -41,6 +42,7 @@ contract LendingPool is AccessControl, ReentrancyGuard {
     // stored in BPS (basis points)
     uint256 public collateralRatioBps = 15000; // 150% default
     uint256 public constant BPS_DENOM = 10000;
+    uint256 public constant SECONDS_PER_YEAR = 31536000;
 
     // --- Token / Reserve bookkeeping ---
     struct Reserve {
@@ -60,10 +62,11 @@ contract LendingPool is AccessControl, ReentrancyGuard {
     mapping(address => uint256) public collateralETH; // available collateral (not locked)
     struct Loan {
         address borrower;
-        bytes32 symbol;    // which reserve token borrowed
+        bytes32 symbol; // which reserve token borrowed
         uint256 principal; // borrowed amount (token decimals)
         uint256 collateral; // ETH locked for this loan
         bool active;
+        uint256 timestamp;
     }
     mapping(address => Loan) public loans; // single active loan per borrower (MVP)
 
@@ -71,14 +74,45 @@ contract LendingPool is AccessControl, ReentrancyGuard {
     mapping(bytes32 => mapping(address => uint256)) public lenderBalances;
 
     // --- Events ---
-    event ReserveAdded(bytes32 indexed symbol, address indexed token, address indexed priceFeed, uint256 rateBps);
-    event ReserveUpdated(bytes32 indexed symbol, address indexed priceFeed, uint256 rateBps);
-    event Deposited(address indexed lender, bytes32 indexed symbol, uint256 amount);
-    event Withdrawn(address indexed lender, bytes32 indexed symbol, uint256 amount);
+    event ReserveAdded(
+        bytes32 indexed symbol,
+        address indexed token,
+        address indexed priceFeed,
+        uint256 rateBps
+    );
+    event ReserveUpdated(
+        bytes32 indexed symbol,
+        address indexed priceFeed,
+        uint256 rateBps
+    );
+    event Deposited(
+        address indexed lender,
+        bytes32 indexed symbol,
+        uint256 amount
+    );
+    event Withdrawn(
+        address indexed lender,
+        bytes32 indexed symbol,
+        uint256 amount
+    );
     event CollateralDeposited(address indexed user, uint256 amount);
-    event Borrowed(address indexed borrower, bytes32 indexed symbol, uint256 amount, uint256 collateral);
-    event Repaid(address indexed borrower, bytes32 indexed symbol, uint256 repaid, uint256 interest);
-    event Liquidated(address indexed borrower, address indexed liquidator, uint256 seizedCollateral);
+    event Borrowed(
+        address indexed borrower,
+        bytes32 indexed symbol,
+        uint256 amount,
+        uint256 collateral
+    );
+    event Repaid(
+        address indexed borrower,
+        bytes32 indexed symbol,
+        uint256 repaid,
+        uint256 interest
+    );
+    event Liquidated(
+        address indexed borrower,
+        address indexed liquidator,
+        uint256 seizedCollateral
+    );
     event CollateralRatioUpdated(uint256 newRatioBps);
 
     // --- Constructor: grant admin role to deployer ---
@@ -107,18 +141,24 @@ contract LendingPool is AccessControl, ReentrancyGuard {
         emit ReserveAdded(symbol, tokenAddr, priceFeedAddr, interestRateBps);
     }
 
-    function updateReserve(bytes32 symbol, address priceFeedAddr, uint256 interestRateBps)
-        external
-        onlyRole(DEFAULT_ADMIN_ROLE)
-    {
+    function updateReserve(
+        bytes32 symbol,
+        address priceFeedAddr,
+        uint256 interestRateBps
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(reserves[symbol].enabled, "no reserve");
         reserves[symbol].priceFeed = priceFeedAddr;
         reserves[symbol].interestRateBps = interestRateBps;
         emit ReserveUpdated(symbol, priceFeedAddr, interestRateBps);
     }
 
-    function setCollateralRatio(uint256 newRatioBps) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(newRatioBps >= 1000 && newRatioBps <= 30000, "ratio out of range"); // 10% - 300%
+    function setCollateralRatio(
+        uint256 newRatioBps
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(
+            newRatioBps >= 1000 && newRatioBps <= 30000,
+            "ratio out of range"
+        ); // 10% - 300%
         collateralRatioBps = newRatioBps;
         emit CollateralRatioUpdated(newRatioBps);
     }
@@ -170,10 +210,12 @@ contract LendingPool is AccessControl, ReentrancyGuard {
      * - price feeds assumed to return token-USD or ETH-USD depending on feed; for simplicity,
      *   we will get ETH/USD price to value ETH collateral and assume token is USD-pegged
      */
-    function borrow(bytes32 symbol, uint256 amount, uint256 maxPriceSlippageBps, uint256 expectedEthUsd)
-        external
-        nonReentrant
-    {
+    function borrow(
+        bytes32 symbol,
+        uint256 amount,
+        uint256 maxPriceSlippageBps,
+        uint256 expectedEthUsd
+    ) external nonReentrant {
         require(amount > 0, "amount=0");
         require(!loans[msg.sender].active, "loan exists");
         Reserve storage r = reserves[symbol];
@@ -187,16 +229,37 @@ contract LendingPool is AccessControl, ReentrancyGuard {
         uint256 ethUsdPrice = _getPriceAs1e18(r.priceFeed, "ETH/USD");
         // optional slippage guard (protect user)
         if (expectedEthUsd != 0) {
-            uint256 diff = ethUsdPrice > expectedEthUsd ? ethUsdPrice - expectedEthUsd : expectedEthUsd - ethUsdPrice;
-            require(diff * BPS_DENOM <= expectedEthUsd * maxPriceSlippageBps, "price slippage");
+            uint256 diff = ethUsdPrice > expectedEthUsd
+                ? ethUsdPrice - expectedEthUsd
+                : expectedEthUsd - ethUsdPrice;
+            require(
+                diff * BPS_DENOM <= expectedEthUsd * maxPriceSlippageBps,
+                "price slippage"
+            );
         }
 
         // collateral value in USD (1e18 scale)
         uint256 collateralUsdValue = (availableEth * ethUsdPrice) / 1e18;
 
+        uint8 tokenDecimals = IERC20Metadata(r.token).decimals();
+        uint256 normalizedAmount = amount;
+
+        if (tokenDecimals < 18) {
+            normalizedAmount = amount * (10 ** (18 - tokenDecimals));
+        }
+
+        require(
+            collateralUsdValue * BPS_DENOM >=
+                normalizedAmount * collateralRatioBps,
+            "insufficient collateral"
+        );
+
         // Check collateral ratio: collateralUsd >= amount * collateralRatioBps / BPS_DENOM
         // NOTE: this assumes 'amount' is USD-like in decimals (for mock fiat tokens use 18 decimals).
-        require(collateralUsdValue * BPS_DENOM >= amount * collateralRatioBps, "insufficient collateral");
+        require(
+            collateralUsdValue * BPS_DENOM >= amount * collateralRatioBps,
+            "insufficient collateral"
+        );
 
         // lock collateral: for MVP we lock all available collateral
         collateralETH[msg.sender] = 0;
@@ -207,7 +270,8 @@ contract LendingPool is AccessControl, ReentrancyGuard {
             symbol: symbol,
             principal: amount,
             collateral: availableEth,
-            active: true
+            active: true,
+            timestamp: block.timestamp
         });
 
         // transfer tokens to borrower
@@ -224,8 +288,11 @@ contract LendingPool is AccessControl, ReentrancyGuard {
         Reserve storage r = reserves[loan.symbol];
         require(r.enabled, "reserve disabled");
 
+        uint256 time_elasped = block.timestamp - loan.timestamp;
+
         // compute interest (rounded up)
-        uint256 interest = (loan.principal * r.interestRateBps + (BPS_DENOM - 1)) / BPS_DENOM;
+        uint256 denominator = BPS_DENOM * SECONDS_PER_YEAR;
+        uint256 interest = (loan.principal * r.interestRateBps * time_elasped + (denominator - 1)) / denominator;
         uint256 totalOwed = loan.principal + interest;
 
         // pull tokens from borrower
@@ -250,7 +317,9 @@ contract LendingPool is AccessControl, ReentrancyGuard {
 
     // ---------------- Liquidation ----------------
     // Anyone with LIQUIDATOR_ROLE (or permissionless if you prefer) can liquidate
-    function liquidate(address borrower) external nonReentrant onlyRole(LIQUIDATOR_ROLE) {
+    function liquidate(
+        address borrower
+    ) external nonReentrant onlyRole(LIQUIDATOR_ROLE) {
         Loan storage loan = loans[borrower];
         require(loan.active, "no active loan");
 
@@ -281,11 +350,23 @@ contract LendingPool is AccessControl, ReentrancyGuard {
 
     // ---------------- Internal helpers ----------------
     // Normalize price to 1e18 scale
-    function _getPriceAs1e18(address priceFeed, string memory _hint) internal view returns (uint256) {
+    function _getPriceAs1e18(
+        address priceFeed,
+        string memory _hint
+    ) internal view returns (uint256) {
         require(priceFeed != address(0), "no feed");
         AggregatorV3Interface feed = AggregatorV3Interface(priceFeed);
-        (, int256 answer, , , ) = feed.latestRoundData();
+        (
+            uint80 roundId,
+            int256 answer,
+            ,
+            uint256 updatedAt,
+            uint80 answeredInRound
+        ) = feed.latestRoundData();
         require(answer > 0, "bad price");
+        require(updatedAt > 0, "incomplete Round");
+        require(answeredInRound >= roundId, "stalePrice");
+        require(block.timestamp - updatedAt < 7200, "price too old");
         uint8 decimalsFeed = feed.decimals();
         // scale to 1e18
         if (decimalsFeed == 18) {

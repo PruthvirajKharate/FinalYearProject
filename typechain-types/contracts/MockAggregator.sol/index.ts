@@ -3,4 +3,3 @@
 /* eslint-disable */
 export type { AggregatorV3Interface } from "./AggregatorV3Interface";
 export type { MockAggregator } from "./MockAggregator";
-export type { YenToken } from "./YenToken";
