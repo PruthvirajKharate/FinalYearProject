@@ -29,6 +29,7 @@ export interface LendingPoolInterface extends Interface {
       | "BPS_DENOM"
       | "DEFAULT_ADMIN_ROLE"
       | "LIQUIDATOR_ROLE"
+      | "SECONDS_PER_YEAR"
       | "addReserve"
       | "borrow"
       | "collateralETH"
@@ -75,6 +76,10 @@ export interface LendingPoolInterface extends Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "LIQUIDATOR_ROLE",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "SECONDS_PER_YEAR",
     values?: undefined
   ): string;
   encodeFunctionData(
@@ -160,6 +165,10 @@ export interface LendingPoolInterface extends Interface {
   ): Result;
   decodeFunctionResult(
     functionFragment: "LIQUIDATOR_ROLE",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "SECONDS_PER_YEAR",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "addReserve", data: BytesLike): Result;
@@ -502,6 +511,8 @@ export interface LendingPool extends BaseContract {
 
   LIQUIDATOR_ROLE: TypedContractMethod<[], [string], "view">;
 
+  SECONDS_PER_YEAR: TypedContractMethod<[], [bigint], "view">;
+
   addReserve: TypedContractMethod<
     [
       symbol: BytesLike,
@@ -561,12 +572,13 @@ export interface LendingPool extends BaseContract {
   loans: TypedContractMethod<
     [arg0: AddressLike],
     [
-      [string, string, bigint, bigint, boolean] & {
+      [string, string, bigint, bigint, boolean, bigint] & {
         borrower: string;
         symbol: string;
         principal: bigint;
         collateral: bigint;
         active: boolean;
+        timestamp: bigint;
       }
     ],
     "view"
@@ -644,6 +656,9 @@ export interface LendingPool extends BaseContract {
     nameOrSignature: "LIQUIDATOR_ROLE"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
+    nameOrSignature: "SECONDS_PER_YEAR"
+  ): TypedContractMethod<[], [bigint], "view">;
+  getFunction(
     nameOrSignature: "addReserve"
   ): TypedContractMethod<
     [
@@ -715,12 +730,13 @@ export interface LendingPool extends BaseContract {
   ): TypedContractMethod<
     [arg0: AddressLike],
     [
-      [string, string, bigint, bigint, boolean] & {
+      [string, string, bigint, bigint, boolean, bigint] & {
         borrower: string;
         symbol: string;
         principal: bigint;
         collateral: bigint;
         active: boolean;
+        timestamp: bigint;
       }
     ],
     "view"

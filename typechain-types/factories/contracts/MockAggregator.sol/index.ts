@@ -3,4 +3,3 @@
 /* eslint-disable */
 export { AggregatorV3Interface__factory } from "./AggregatorV3Interface__factory";
 export { MockAggregator__factory } from "./MockAggregator__factory";
-export { YenToken__factory } from "./YenToken__factory";

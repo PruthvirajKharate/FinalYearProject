@@ -82,10 +82,6 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.MockAggregator__factory>;
     getContractFactory(
-      name: "YenToken",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.YenToken__factory>;
-    getContractFactory(
       name: "RupeeToken",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.RupeeToken__factory>;
@@ -184,11 +180,6 @@ declare module "hardhat/types/runtime" {
       signer?: ethers.Signer
     ): Promise<Contracts.MockAggregator>;
     getContractAt(
-      name: "YenToken",
-      address: string | ethers.Addressable,
-      signer?: ethers.Signer
-    ): Promise<Contracts.YenToken>;
-    getContractAt(
       name: "RupeeToken",
       address: string | ethers.Addressable,
       signer?: ethers.Signer
@@ -272,10 +263,6 @@ declare module "hardhat/types/runtime" {
       name: "MockAggregator",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.MockAggregator>;
-    deployContract(
-      name: "YenToken",
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.YenToken>;
     deployContract(
       name: "RupeeToken",
       signerOrOptions?: ethers.Signer | DeployContractOptions
@@ -374,11 +361,6 @@ declare module "hardhat/types/runtime" {
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.MockAggregator>;
-    deployContract(
-      name: "YenToken",
-      args: any[],
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.YenToken>;
     deployContract(
       name: "RupeeToken",
       args: any[],
