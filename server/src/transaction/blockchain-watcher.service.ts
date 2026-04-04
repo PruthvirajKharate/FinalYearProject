@@ -214,6 +214,7 @@ export class BlockchainWatcherService implements OnModuleInit {
         const txHash = event.log?.transactionHash || event.transactionHash;
 
         try {
+            await this.loanService.markAsRepaidByAddress(borrower);
             await this.reserveService.updateLiquidity(assetSymbol, repaidFormatted, true);
 
             await this.transactionService.recordTransaction({
@@ -246,6 +247,7 @@ export class BlockchainWatcherService implements OnModuleInit {
 
         try {
             await this.userService.findOrCreateUser(liquidator);
+            await this.loanService.markAsLiquidatedByAddress(borrower);
 
             await this.transactionService.recordTransaction({
                 txHash,

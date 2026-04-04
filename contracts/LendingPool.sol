@@ -344,11 +344,19 @@ contract LendingPool is AccessControl, ReentrancyGuard {
     function _executeLiquidation(address borrower, address liquidator, LiquidationType liqType) internal {
         Loan storage loan = loans[borrower];
         uint256 seized = loan.collateral;
+        uint256 debtToRepay = loan.principal;
+        
+        Reserve storage r = reserves[loan.symbol];
 
         loan.active = false;
         loan.principal = 0;
         loan.collateral = 0;
 
+        // 1. The Liquidator pays the bad debt to make the protocol whole
+        IERC20(r.token).safeTransferFrom(liquidator, address(this), debtToRepay);
+        r.totalLiquidity += debtToRepay;
+
+        // 2. The Liquidator receives the seized ETH collateral as a reward
         (bool ok, ) = payable(liquidator).call{value: seized}("");
         require(ok, "ETH send failed");
 

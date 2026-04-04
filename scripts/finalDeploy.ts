@@ -66,6 +66,15 @@ async function main() {
     false // isHighRisk
   );
   await tx.wait();
+
+  // 4. Liquidator Bankroll Pre-Approval
+  // The Deployer (Account 0) also acts as our native Liquidation-Bot. 
+  // It holds 1,000,000 of each token. We must approve the LendingPool so `safeTransferFrom` inside `_executeLiquidation` can pull the debt.
+  console.log("Approving Liquidator Bankroll...");
+  await usd.approve(await pool.getAddress(), ethers.MaxUint256);
+  await rs.approve(await pool.getAddress(), ethers.MaxUint256);
+  await yen.approve(await pool.getAddress(), ethers.MaxUint256);
+  console.log("Liquidator Bankroll Ready!");
 }
 
 main().catch((error) => {

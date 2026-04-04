@@ -38,12 +38,13 @@ export class LoanService {
     }
 
     /**
-     * Marks a loan as 'Liquidated' and links it to the seizure record.
+     * Marks an active loan as 'Liquidated' using the borrower's address.
      */
-    async markAsLiquidated(loanId: number): Promise<void> {
-        await this.loanRepository.update(loanId, {
-            status: LOAN_STATUS.LIQUIDATED
-        });
+    async markAsLiquidatedByAddress(borrowerAddress: string): Promise<void> {
+        await this.loanRepository.update(
+            { borrowerAddress, status: LOAN_STATUS.ACTIVE },
+            { status: LOAN_STATUS.LIQUIDATED }
+        );
     }
 
     /**
@@ -63,5 +64,14 @@ export class LoanService {
             { borrowerAddress, status: LOAN_STATUS.ACTIVE },
             { status: LOAN_STATUS.REPAID }
         );
+    }
+
+    /**
+     * Finds all active loans in the database for the liquidation bot to check.
+     */
+    async findAllActiveLoans(): Promise<Loan[]> {
+        return await this.loanRepository.find({
+            where: { status: LOAN_STATUS.ACTIVE },
+        });
     }
 }

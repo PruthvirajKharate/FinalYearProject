@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -9,6 +10,7 @@ import { ReserveModule } from './reserve/reserve.module';
 import { LoanModule } from './loan/loan.module';
 import { TransactionModule } from './transaction/transaction.module';
 import { DaoModule } from './dao/dao.module';
+import { LiquidationModule } from './liquidation/liquidation.module';
 
 /**
  * The Root Module of the application.
@@ -39,7 +41,9 @@ import { DaoModule } from './dao/dao.module';
     ReserveModule,
     LoanModule,
     TransactionModule,
-    DaoModule
+    DaoModule,
+    LiquidationModule,
+    ScheduleModule.forRoot()
   ],
   controllers: [AppController],
   providers: [AppService],
