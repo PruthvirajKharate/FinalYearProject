@@ -37,30 +37,33 @@ async function main() {
   console.log("YenToken:", await yen.getAddress());
   console.log("LendingPool:", await pool.getAddress());
 
-  // addReserve for USD
+  // addReserve for USD (Low risk)
   let tx = await pool.addReserve(
     ethers.encodeBytes32String("USD"),
     await usd.getAddress(),
     await mockAggregator.getAddress(),
-    500 // 5% interest
+    500, // 5% interest
+    false // isHighRisk
   );
   await tx.wait(); // wait for the transaction to be mined
 
-  // addReserve for RS
+  // addReserve for RS (High risk)
   tx = await pool.addReserve(
     ethers.encodeBytes32String("RS"),
     await rs.getAddress(),
     await mockAggregator.getAddress(),
-    700
+    700, // 7% interest
+    true // isHighRisk
   );
   await tx.wait();
 
-  // addReserve for YEN
+  // addReserve for YEN (Low risk)
   tx = await pool.addReserve(
     ethers.encodeBytes32String("YEN"),
     await yen.getAddress(),
     await mockAggregator.getAddress(),
-    600
+    600, // 6% interest
+    false // isHighRisk
   );
   await tx.wait();
 }

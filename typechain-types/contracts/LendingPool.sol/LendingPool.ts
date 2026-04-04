@@ -27,21 +27,26 @@ export interface LendingPoolInterface extends Interface {
   getFunction(
     nameOrSignature:
       | "BPS_DENOM"
+      | "DAO_ROLE"
       | "DEFAULT_ADMIN_ROLE"
+      | "HIGH_RISK_COLLATERAL_RATIO_BPS"
       | "LIQUIDATOR_ROLE"
       | "SECONDS_PER_YEAR"
+      | "activeDaoLiquidationProposals"
       | "addReserve"
       | "borrow"
       | "collateralETH"
       | "collateralRatioBps"
       | "deposit"
       | "depositCollateral"
+      | "executeDAOLiquidation"
       | "getRoleAdmin"
       | "grantRole"
       | "hasRole"
       | "lenderBalances"
       | "liquidate"
       | "loans"
+      | "proposeDAOLiquidation"
       | "renounceRole"
       | "repay"
       | "reserves"
@@ -58,6 +63,7 @@ export interface LendingPoolInterface extends Interface {
       | "Borrowed"
       | "CollateralDeposited"
       | "CollateralRatioUpdated"
+      | "DAOLiquidationProposed"
       | "Deposited"
       | "Liquidated"
       | "Repaid"
@@ -70,8 +76,13 @@ export interface LendingPoolInterface extends Interface {
   ): EventFragment;
 
   encodeFunctionData(functionFragment: "BPS_DENOM", values?: undefined): string;
+  encodeFunctionData(functionFragment: "DAO_ROLE", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "DEFAULT_ADMIN_ROLE",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "HIGH_RISK_COLLATERAL_RATIO_BPS",
     values?: undefined
   ): string;
   encodeFunctionData(
@@ -83,8 +94,12 @@ export interface LendingPoolInterface extends Interface {
     values?: undefined
   ): string;
   encodeFunctionData(
+    functionFragment: "activeDaoLiquidationProposals",
+    values: [AddressLike]
+  ): string;
+  encodeFunctionData(
     functionFragment: "addReserve",
-    values: [BytesLike, AddressLike, AddressLike, BigNumberish]
+    values: [BytesLike, AddressLike, AddressLike, BigNumberish, boolean]
   ): string;
   encodeFunctionData(
     functionFragment: "borrow",
@@ -107,6 +122,10 @@ export interface LendingPoolInterface extends Interface {
     values?: undefined
   ): string;
   encodeFunctionData(
+    functionFragment: "executeDAOLiquidation",
+    values: [AddressLike]
+  ): string;
+  encodeFunctionData(
     functionFragment: "getRoleAdmin",
     values: [BytesLike]
   ): string;
@@ -127,6 +146,10 @@ export interface LendingPoolInterface extends Interface {
     values: [AddressLike]
   ): string;
   encodeFunctionData(functionFragment: "loans", values: [AddressLike]): string;
+  encodeFunctionData(
+    functionFragment: "proposeDAOLiquidation",
+    values: [AddressLike]
+  ): string;
   encodeFunctionData(
     functionFragment: "renounceRole",
     values: [BytesLike, AddressLike]
@@ -151,7 +174,7 @@ export interface LendingPoolInterface extends Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "updateReserve",
-    values: [BytesLike, AddressLike, BigNumberish]
+    values: [BytesLike, AddressLike, BigNumberish, boolean]
   ): string;
   encodeFunctionData(
     functionFragment: "withdraw",
@@ -159,8 +182,13 @@ export interface LendingPoolInterface extends Interface {
   ): string;
 
   decodeFunctionResult(functionFragment: "BPS_DENOM", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "DAO_ROLE", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "DEFAULT_ADMIN_ROLE",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "HIGH_RISK_COLLATERAL_RATIO_BPS",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -169,6 +197,10 @@ export interface LendingPoolInterface extends Interface {
   ): Result;
   decodeFunctionResult(
     functionFragment: "SECONDS_PER_YEAR",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "activeDaoLiquidationProposals",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "addReserve", data: BytesLike): Result;
@@ -187,6 +219,10 @@ export interface LendingPoolInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
+    functionFragment: "executeDAOLiquidation",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "getRoleAdmin",
     data: BytesLike
   ): Result;
@@ -198,6 +234,10 @@ export interface LendingPoolInterface extends Interface {
   ): Result;
   decodeFunctionResult(functionFragment: "liquidate", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "loans", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "proposeDAOLiquidation",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "renounceRole",
     data: BytesLike
@@ -274,6 +314,19 @@ export namespace CollateralRatioUpdatedEvent {
   export type LogDescription = TypedLogDescription<Event>;
 }
 
+export namespace DAOLiquidationProposedEvent {
+  export type InputTuple = [borrower: AddressLike, proposer: AddressLike];
+  export type OutputTuple = [borrower: string, proposer: string];
+  export interface OutputObject {
+    borrower: string;
+    proposer: string;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
 export namespace DepositedEvent {
   export type InputTuple = [
     lender: AddressLike,
@@ -296,17 +349,20 @@ export namespace LiquidatedEvent {
   export type InputTuple = [
     borrower: AddressLike,
     liquidator: AddressLike,
-    seizedCollateral: BigNumberish
+    seizedCollateral: BigNumberish,
+    liquidationType: BigNumberish
   ];
   export type OutputTuple = [
     borrower: string,
     liquidator: string,
-    seizedCollateral: bigint
+    seizedCollateral: bigint,
+    liquidationType: bigint
   ];
   export interface OutputObject {
     borrower: string;
     liquidator: string;
     seizedCollateral: bigint;
+    liquidationType: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -344,19 +400,22 @@ export namespace ReserveAddedEvent {
     symbol: BytesLike,
     token: AddressLike,
     priceFeed: AddressLike,
-    rateBps: BigNumberish
+    rateBps: BigNumberish,
+    isHighRisk: boolean
   ];
   export type OutputTuple = [
     symbol: string,
     token: string,
     priceFeed: string,
-    rateBps: bigint
+    rateBps: bigint,
+    isHighRisk: boolean
   ];
   export interface OutputObject {
     symbol: string;
     token: string;
     priceFeed: string;
     rateBps: bigint;
+    isHighRisk: boolean;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -368,17 +427,20 @@ export namespace ReserveUpdatedEvent {
   export type InputTuple = [
     symbol: BytesLike,
     priceFeed: AddressLike,
-    rateBps: BigNumberish
+    rateBps: BigNumberish,
+    isHighRisk: boolean
   ];
   export type OutputTuple = [
     symbol: string,
     priceFeed: string,
-    rateBps: bigint
+    rateBps: bigint,
+    isHighRisk: boolean
   ];
   export interface OutputObject {
     symbol: string;
     priceFeed: string;
     rateBps: bigint;
+    isHighRisk: boolean;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -507,18 +569,29 @@ export interface LendingPool extends BaseContract {
 
   BPS_DENOM: TypedContractMethod<[], [bigint], "view">;
 
+  DAO_ROLE: TypedContractMethod<[], [string], "view">;
+
   DEFAULT_ADMIN_ROLE: TypedContractMethod<[], [string], "view">;
+
+  HIGH_RISK_COLLATERAL_RATIO_BPS: TypedContractMethod<[], [bigint], "view">;
 
   LIQUIDATOR_ROLE: TypedContractMethod<[], [string], "view">;
 
   SECONDS_PER_YEAR: TypedContractMethod<[], [bigint], "view">;
+
+  activeDaoLiquidationProposals: TypedContractMethod<
+    [arg0: AddressLike],
+    [boolean],
+    "view"
+  >;
 
   addReserve: TypedContractMethod<
     [
       symbol: BytesLike,
       tokenAddr: AddressLike,
       priceFeedAddr: AddressLike,
-      interestRateBps: BigNumberish
+      interestRateBps: BigNumberish,
+      isHighRisk: boolean
     ],
     [void],
     "nonpayable"
@@ -546,6 +619,12 @@ export interface LendingPool extends BaseContract {
   >;
 
   depositCollateral: TypedContractMethod<[], [void], "payable">;
+
+  executeDAOLiquidation: TypedContractMethod<
+    [borrower: AddressLike],
+    [void],
+    "nonpayable"
+  >;
 
   getRoleAdmin: TypedContractMethod<[role: BytesLike], [string], "view">;
 
@@ -584,6 +663,12 @@ export interface LendingPool extends BaseContract {
     "view"
   >;
 
+  proposeDAOLiquidation: TypedContractMethod<
+    [borrower: AddressLike],
+    [void],
+    "nonpayable"
+  >;
+
   renounceRole: TypedContractMethod<
     [role: BytesLike, callerConfirmation: AddressLike],
     [void],
@@ -595,12 +680,13 @@ export interface LendingPool extends BaseContract {
   reserves: TypedContractMethod<
     [arg0: BytesLike],
     [
-      [boolean, string, string, bigint, bigint] & {
+      [boolean, string, string, bigint, bigint, boolean] & {
         enabled: boolean;
         token: string;
         priceFeed: string;
         interestRateBps: bigint;
         totalLiquidity: bigint;
+        isHighRisk: boolean;
       }
     ],
     "view"
@@ -630,7 +716,8 @@ export interface LendingPool extends BaseContract {
     [
       symbol: BytesLike,
       priceFeedAddr: AddressLike,
-      interestRateBps: BigNumberish
+      interestRateBps: BigNumberish,
+      isHighRisk: boolean
     ],
     [void],
     "nonpayable"
@@ -650,8 +737,14 @@ export interface LendingPool extends BaseContract {
     nameOrSignature: "BPS_DENOM"
   ): TypedContractMethod<[], [bigint], "view">;
   getFunction(
+    nameOrSignature: "DAO_ROLE"
+  ): TypedContractMethod<[], [string], "view">;
+  getFunction(
     nameOrSignature: "DEFAULT_ADMIN_ROLE"
   ): TypedContractMethod<[], [string], "view">;
+  getFunction(
+    nameOrSignature: "HIGH_RISK_COLLATERAL_RATIO_BPS"
+  ): TypedContractMethod<[], [bigint], "view">;
   getFunction(
     nameOrSignature: "LIQUIDATOR_ROLE"
   ): TypedContractMethod<[], [string], "view">;
@@ -659,13 +752,17 @@ export interface LendingPool extends BaseContract {
     nameOrSignature: "SECONDS_PER_YEAR"
   ): TypedContractMethod<[], [bigint], "view">;
   getFunction(
+    nameOrSignature: "activeDaoLiquidationProposals"
+  ): TypedContractMethod<[arg0: AddressLike], [boolean], "view">;
+  getFunction(
     nameOrSignature: "addReserve"
   ): TypedContractMethod<
     [
       symbol: BytesLike,
       tokenAddr: AddressLike,
       priceFeedAddr: AddressLike,
-      interestRateBps: BigNumberish
+      interestRateBps: BigNumberish,
+      isHighRisk: boolean
     ],
     [void],
     "nonpayable"
@@ -698,6 +795,9 @@ export interface LendingPool extends BaseContract {
   getFunction(
     nameOrSignature: "depositCollateral"
   ): TypedContractMethod<[], [void], "payable">;
+  getFunction(
+    nameOrSignature: "executeDAOLiquidation"
+  ): TypedContractMethod<[borrower: AddressLike], [void], "nonpayable">;
   getFunction(
     nameOrSignature: "getRoleAdmin"
   ): TypedContractMethod<[role: BytesLike], [string], "view">;
@@ -742,6 +842,9 @@ export interface LendingPool extends BaseContract {
     "view"
   >;
   getFunction(
+    nameOrSignature: "proposeDAOLiquidation"
+  ): TypedContractMethod<[borrower: AddressLike], [void], "nonpayable">;
+  getFunction(
     nameOrSignature: "renounceRole"
   ): TypedContractMethod<
     [role: BytesLike, callerConfirmation: AddressLike],
@@ -756,12 +859,13 @@ export interface LendingPool extends BaseContract {
   ): TypedContractMethod<
     [arg0: BytesLike],
     [
-      [boolean, string, string, bigint, bigint] & {
+      [boolean, string, string, bigint, bigint, boolean] & {
         enabled: boolean;
         token: string;
         priceFeed: string;
         interestRateBps: bigint;
         totalLiquidity: bigint;
+        isHighRisk: boolean;
       }
     ],
     "view"
@@ -788,7 +892,8 @@ export interface LendingPool extends BaseContract {
     [
       symbol: BytesLike,
       priceFeedAddr: AddressLike,
-      interestRateBps: BigNumberish
+      interestRateBps: BigNumberish,
+      isHighRisk: boolean
     ],
     [void],
     "nonpayable"
@@ -821,6 +926,13 @@ export interface LendingPool extends BaseContract {
     CollateralRatioUpdatedEvent.InputTuple,
     CollateralRatioUpdatedEvent.OutputTuple,
     CollateralRatioUpdatedEvent.OutputObject
+  >;
+  getEvent(
+    key: "DAOLiquidationProposed"
+  ): TypedContractEvent<
+    DAOLiquidationProposedEvent.InputTuple,
+    DAOLiquidationProposedEvent.OutputTuple,
+    DAOLiquidationProposedEvent.OutputObject
   >;
   getEvent(
     key: "Deposited"
@@ -920,6 +1032,17 @@ export interface LendingPool extends BaseContract {
       CollateralRatioUpdatedEvent.OutputObject
     >;
 
+    "DAOLiquidationProposed(address,address)": TypedContractEvent<
+      DAOLiquidationProposedEvent.InputTuple,
+      DAOLiquidationProposedEvent.OutputTuple,
+      DAOLiquidationProposedEvent.OutputObject
+    >;
+    DAOLiquidationProposed: TypedContractEvent<
+      DAOLiquidationProposedEvent.InputTuple,
+      DAOLiquidationProposedEvent.OutputTuple,
+      DAOLiquidationProposedEvent.OutputObject
+    >;
+
     "Deposited(address,bytes32,uint256)": TypedContractEvent<
       DepositedEvent.InputTuple,
       DepositedEvent.OutputTuple,
@@ -931,7 +1054,7 @@ export interface LendingPool extends BaseContract {
       DepositedEvent.OutputObject
     >;
 
-    "Liquidated(address,address,uint256)": TypedContractEvent<
+    "Liquidated(address,address,uint256,uint8)": TypedContractEvent<
       LiquidatedEvent.InputTuple,
       LiquidatedEvent.OutputTuple,
       LiquidatedEvent.OutputObject
@@ -953,7 +1076,7 @@ export interface LendingPool extends BaseContract {
       RepaidEvent.OutputObject
     >;
 
-    "ReserveAdded(bytes32,address,address,uint256)": TypedContractEvent<
+    "ReserveAdded(bytes32,address,address,uint256,bool)": TypedContractEvent<
       ReserveAddedEvent.InputTuple,
       ReserveAddedEvent.OutputTuple,
       ReserveAddedEvent.OutputObject
@@ -964,7 +1087,7 @@ export interface LendingPool extends BaseContract {
       ReserveAddedEvent.OutputObject
     >;
 
-    "ReserveUpdated(bytes32,address,uint256)": TypedContractEvent<
+    "ReserveUpdated(bytes32,address,uint256,bool)": TypedContractEvent<
       ReserveUpdatedEvent.InputTuple,
       ReserveUpdatedEvent.OutputTuple,
       ReserveUpdatedEvent.OutputObject

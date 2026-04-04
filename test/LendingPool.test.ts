@@ -32,9 +32,9 @@ describe("LendingPool (integrated flow)", function () {
 
     // 4) Add reserves
     const usdSymbol = ethers.encodeBytes32String("USD");
-    await (await pool.addReserve(usdSymbol, await usd.getAddress(), await mockAggregator.getAddress(), 500)).wait();
-    await (await pool.addReserve(ethers.encodeBytes32String("RS"), await rs.getAddress(), await mockAggregator.getAddress(), 700)).wait();
-    await (await pool.addReserve(ethers.encodeBytes32String("YEN"), await yen.getAddress(), await mockAggregator.getAddress(), 600)).wait();
+    await (await pool.addReserve(usdSymbol, await usd.getAddress(), await mockAggregator.getAddress(), 500, false)).wait();
+    await (await pool.addReserve(ethers.encodeBytes32String("RS"), await rs.getAddress(), await mockAggregator.getAddress(), 700, true)).wait();
+    await (await pool.addReserve(ethers.encodeBytes32String("YEN"), await yen.getAddress(), await mockAggregator.getAddress(), 600, false)).wait();
 
     // ---------- Lender flow ----------
     const depositAmount = ethers.parseUnits("500", 18);

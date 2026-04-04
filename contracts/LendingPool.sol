@@ -1,19 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-/*
-  Production-ish MVP LendingPool
-
-  - Uses OpenZeppelin: AccessControl, ReentrancyGuard, SafeERC20
-  - Supports multiple ERC20 reserve tokens
-  - Chainlink price feed interface (inline)
-  - Role-based access (DEFAULT_ADMIN_ROLE, LIQUIDATOR_ROLE)
-  - Admin-configurable per-token interest rates and price feeds
-  - deposit (lenders), withdraw (lenders), depositCollateral (borrowers),
-    borrow, repay, liquidate
-  - single active loan per borrower (MVP) — can be extended later
-*/
-
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -33,14 +20,29 @@ interface AggregatorV3Interface {
         );
 }
 
+/**
+ * @title LendingPool
+ * @dev Core contract for Crypto Lending Application
+ *      - Supports borrowing ERC20 simulation tokens by depositing ETH collateral.
+ *      - Differentiates high-risk assets by modifying Loan-To-Value (LTV).
+ *      - Offers both automatic and DAO-verified liquidation flows.
+ */
 contract LendingPool is AccessControl, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     bytes32 public constant LIQUIDATOR_ROLE = keccak256("LIQUIDATOR_ROLE");
+    bytes32 public constant DAO_ROLE = keccak256("DAO_ROLE");
+
+    // --- Enums ---
+    enum LiquidationType {
+        AUTOMATIC,
+        DAO_VERIFIED
+    }
 
     // --- Configurable protocol parameters ---
     // stored in BPS (basis points)
-    uint256 public collateralRatioBps = 15000; // 150% default
+    uint256 public collateralRatioBps = 15000; // 150% default (approx 66% LTV)
+    uint256 public constant HIGH_RISK_COLLATERAL_RATIO_BPS = 20000; // 200% (50% LTV) for high risk assets
     uint256 public constant BPS_DENOM = 10000;
     uint256 public constant SECONDS_PER_YEAR = 31536000;
 
@@ -48,85 +50,66 @@ contract LendingPool is AccessControl, ReentrancyGuard {
     struct Reserve {
         bool enabled;
         address token; // ERC20 token address
-        address priceFeed; // chainlink aggregator for token price in USD or ETH pair as needed
-        uint256 interestRateBps; // flat interest for MVP (per loan) in bps
-        uint256 totalLiquidity; // tokens held from lenders
+        address priceFeed; // chainlink aggregator
+        uint256 interestRateBps; // flat interest rate
+        uint256 totalLiquidity; // total deposited amount
+        bool isHighRisk; // if true, uses high risk collateral ratio
     }
-    // tokenSymbol => reserve
     mapping(bytes32 => Reserve) public reserves;
-
-    // Quick lookup for tokenAddress -> symbol (bytes32) if needed
     mapping(address => bytes32) public tokenToSymbol;
 
     // --- Collateral & Loan bookkeeping ---
-    mapping(address => uint256) public collateralETH; // available collateral (not locked)
+    mapping(address => uint256) public collateralETH;
+    
     struct Loan {
         address borrower;
-        bytes32 symbol; // which reserve token borrowed
-        uint256 principal; // borrowed amount (token decimals)
-        uint256 collateral; // ETH locked for this loan
+        bytes32 symbol; 
+        uint256 principal; 
+        uint256 collateral; 
         bool active;
         uint256 timestamp;
     }
-    mapping(address => Loan) public loans; // single active loan per borrower (MVP)
-
-    // Lender balances per token symbol
+    mapping(address => Loan) public loans; 
     mapping(bytes32 => mapping(address => uint256)) public lenderBalances;
 
-    // --- Events ---
-    event ReserveAdded(
-        bytes32 indexed symbol,
-        address indexed token,
-        address indexed priceFeed,
-        uint256 rateBps
-    );
-    event ReserveUpdated(
-        bytes32 indexed symbol,
-        address indexed priceFeed,
-        uint256 rateBps
-    );
-    event Deposited(
-        address indexed lender,
-        bytes32 indexed symbol,
-        uint256 amount
-    );
-    event Withdrawn(
-        address indexed lender,
-        bytes32 indexed symbol,
-        uint256 amount
-    );
-    event CollateralDeposited(address indexed user, uint256 amount);
-    event Borrowed(
-        address indexed borrower,
-        bytes32 indexed symbol,
-        uint256 amount,
-        uint256 collateral
-    );
-    event Repaid(
-        address indexed borrower,
-        bytes32 indexed symbol,
-        uint256 repaid,
-        uint256 interest
-    );
-    event Liquidated(
-        address indexed borrower,
-        address indexed liquidator,
-        uint256 seizedCollateral
-    );
-    event CollateralRatioUpdated(uint256 newRatioBps);
+    // --- DAO Proposals for Liquidation ---
+    mapping(address => bool) public activeDaoLiquidationProposals;
 
-    // --- Constructor: grant admin role to deployer ---
+    // --- Events ---
+    event ReserveAdded(bytes32 indexed symbol, address indexed token, address indexed priceFeed, uint256 rateBps, bool isHighRisk);
+    event ReserveUpdated(bytes32 indexed symbol, address indexed priceFeed, uint256 rateBps, bool isHighRisk);
+    event Deposited(address indexed lender, bytes32 indexed symbol, uint256 amount);
+    event Withdrawn(address indexed lender, bytes32 indexed symbol, uint256 amount);
+    event CollateralDeposited(address indexed user, uint256 amount);
+    event Borrowed(address indexed borrower, bytes32 indexed symbol, uint256 amount, uint256 collateral);
+    event Repaid(address indexed borrower, bytes32 indexed symbol, uint256 repaid, uint256 interest);
+    event Liquidated(address indexed borrower, address indexed liquidator, uint256 seizedCollateral, LiquidationType liquidationType);
+    event CollateralRatioUpdated(uint256 newRatioBps);
+    event DAOLiquidationProposed(address indexed borrower, address indexed proposer);
+
+    /**
+     * @notice Constructor to setup default roles
+     */
     constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(LIQUIDATOR_ROLE, msg.sender); // admin can liquidate in MVP
+        _grantRole(LIQUIDATOR_ROLE, msg.sender); 
+        _grantRole(DAO_ROLE, msg.sender); 
     }
 
-    // ---------------- Admin functions ----------------
+    /**
+     * @notice Add a new reserve asset
+     * @param symbol Identifying symbol for the asset (e.g. USD, YEN)
+     * @param tokenAddr ERC20 contract address of the asset
+     * @param priceFeedAddr Chainlink price feed address
+     * @param interestRateBps Annual interest rate in BPS
+     * @param isHighRisk Boolean indicating if it's a high risk asset (enforces 50% LTV)
+     */
     function addReserve(
         bytes32 symbol,
         address tokenAddr,
         address priceFeedAddr,
-        uint256 interestRateBps
+        uint256 interestRateBps,
+        bool isHighRisk
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(tokenAddr != address(0), "token=0");
         require(!reserves[symbol].enabled, "reserve exists");
@@ -135,36 +118,48 @@ contract LendingPool is AccessControl, ReentrancyGuard {
             token: tokenAddr,
             priceFeed: priceFeedAddr,
             interestRateBps: interestRateBps,
-            totalLiquidity: 0
+            totalLiquidity: 0,
+            isHighRisk: isHighRisk
         });
         tokenToSymbol[tokenAddr] = symbol;
-        emit ReserveAdded(symbol, tokenAddr, priceFeedAddr, interestRateBps);
+        emit ReserveAdded(symbol, tokenAddr, priceFeedAddr, interestRateBps, isHighRisk);
     }
 
+    /**
+     * @notice Update existing reserve asset
+     * @param symbol Symbol of the asset
+     * @param priceFeedAddr Chainlink price feed address
+     * @param interestRateBps Annual interest rate in BPS
+     * @param isHighRisk Risk status update
+     */
     function updateReserve(
         bytes32 symbol,
         address priceFeedAddr,
-        uint256 interestRateBps
+        uint256 interestRateBps,
+        bool isHighRisk
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(reserves[symbol].enabled, "no reserve");
         reserves[symbol].priceFeed = priceFeedAddr;
         reserves[symbol].interestRateBps = interestRateBps;
-        emit ReserveUpdated(symbol, priceFeedAddr, interestRateBps);
+        reserves[symbol].isHighRisk = isHighRisk;
+        emit ReserveUpdated(symbol, priceFeedAddr, interestRateBps, isHighRisk);
     }
 
-    function setCollateralRatio(
-        uint256 newRatioBps
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(
-            newRatioBps >= 1000 && newRatioBps <= 30000,
-            "ratio out of range"
-        ); // 10% - 300%
+    /**
+     * @notice Set global default collateral ratio
+     * @param newRatioBps New collateral ratio in BPS (e.g., 15000 = 150%)
+     */
+    function setCollateralRatio(uint256 newRatioBps) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(newRatioBps >= 1000 && newRatioBps <= 30000, "ratio out of range"); 
         collateralRatioBps = newRatioBps;
         emit CollateralRatioUpdated(newRatioBps);
     }
 
-    // ---------------- Lender flows ----------------
-    // deposit tokens into reserve (lenders)
+    /**
+     * @notice Deposit tokens into the specified reserve
+     * @param symbol Asset symbol to deposit
+     * @param amount Token amount to deposit (accounting for token decimals)
+     */
     function deposit(bytes32 symbol, uint256 amount) external nonReentrant {
         Reserve storage r = reserves[symbol];
         require(r.enabled, "reserve disabled");
@@ -178,7 +173,11 @@ contract LendingPool is AccessControl, ReentrancyGuard {
         emit Deposited(msg.sender, symbol, amount);
     }
 
-    // withdraw tokens (lender)
+    /**
+     * @notice Withdraw previously deposited tokens
+     * @param symbol Asset symbol to withdraw
+     * @param amount Token amount to withdraw
+     */
     function withdraw(bytes32 symbol, uint256 amount) external nonReentrant {
         Reserve storage r = reserves[symbol];
         require(r.enabled, "reserve disabled");
@@ -186,7 +185,6 @@ contract LendingPool is AccessControl, ReentrancyGuard {
         uint256 userBal = lenderBalances[symbol][msg.sender];
         require(userBal >= amount, "insufficient balance");
 
-        // In a real protocol you'd check available liquidity vs loans; for MVP assume liquidity exists
         lenderBalances[symbol][msg.sender] = userBal - amount;
         r.totalLiquidity -= amount;
 
@@ -195,20 +193,21 @@ contract LendingPool is AccessControl, ReentrancyGuard {
         emit Withdrawn(msg.sender, symbol, amount);
     }
 
-    // ---------------- Collateral flows ----------------
+    /**
+     * @notice Deposit ETH logic as collateral for future borrowing
+     */
     function depositCollateral() external payable nonReentrant {
         require(msg.value > 0, "no ETH");
         collateralETH[msg.sender] += msg.value;
         emit CollateralDeposited(msg.sender, msg.value);
     }
 
-    // ---------------- Borrow flows ----------------
     /**
-     * Borrow `amount` of token `symbol`. Requires collateral already deposited by borrower.
-     * - locks entire available collateral for simplicity (MVP)
-     * - single active loan per borrower
-     * - price feeds assumed to return token-USD or ETH-USD depending on feed; for simplicity,
-     *   we will get ETH/USD price to value ETH collateral and assume token is USD-pegged
+     * @notice Borrow reserve tokens against deposited collateral
+     * @param symbol Asset symbol to borrow
+     * @param amount Amount to borrow
+     * @param maxPriceSlippageBps Maximum allowed price slippage of ETH/USD
+     * @param expectedEthUsd The expected ETH/USD price from chainlink
      */
     function borrow(
         bytes32 symbol,
@@ -221,26 +220,19 @@ contract LendingPool is AccessControl, ReentrancyGuard {
         Reserve storage r = reserves[symbol];
         require(r.enabled, "reserve disabled");
 
-        // must have collateral deposited
         uint256 availableEth = collateralETH[msg.sender];
         require(availableEth > 0, "no collateral");
 
-        // get ETH/USD price
-        uint256 ethUsdPrice = _getPriceAs1e18(r.priceFeed, "ETH/USD");
-        // optional slippage guard (protect user)
+        uint256 ethUsdPrice = _getPriceAs1e18(r.priceFeed);
+        
         if (expectedEthUsd != 0) {
             uint256 diff = ethUsdPrice > expectedEthUsd
                 ? ethUsdPrice - expectedEthUsd
                 : expectedEthUsd - ethUsdPrice;
-            require(
-                diff * BPS_DENOM <= expectedEthUsd * maxPriceSlippageBps,
-                "price slippage"
-            );
+            require(diff * BPS_DENOM <= expectedEthUsd * maxPriceSlippageBps, "price slippage");
         }
 
-        // collateral value in USD (1e18 scale)
         uint256 collateralUsdValue = (availableEth * ethUsdPrice) / 1e18;
-
         uint8 tokenDecimals = IERC20Metadata(r.token).decimals();
         uint256 normalizedAmount = amount;
 
@@ -248,23 +240,11 @@ contract LendingPool is AccessControl, ReentrancyGuard {
             normalizedAmount = amount * (10 ** (18 - tokenDecimals));
         }
 
-        require(
-            collateralUsdValue * BPS_DENOM >=
-                normalizedAmount * collateralRatioBps,
-            "insufficient collateral"
-        );
+        uint256 requiredRatioBps = r.isHighRisk ? HIGH_RISK_COLLATERAL_RATIO_BPS : collateralRatioBps;
+        require(collateralUsdValue * BPS_DENOM >= normalizedAmount * requiredRatioBps, "insufficient collateral");
 
-        // Check collateral ratio: collateralUsd >= amount * collateralRatioBps / BPS_DENOM
-        // NOTE: this assumes 'amount' is USD-like in decimals (for mock fiat tokens use 18 decimals).
-        require(
-            collateralUsdValue * BPS_DENOM >= amount * collateralRatioBps,
-            "insufficient collateral"
-        );
-
-        // lock collateral: for MVP we lock all available collateral
         collateralETH[msg.sender] = 0;
 
-        // create loan
         loans[msg.sender] = Loan({
             borrower: msg.sender,
             symbol: symbol,
@@ -274,13 +254,14 @@ contract LendingPool is AccessControl, ReentrancyGuard {
             timestamp: block.timestamp
         });
 
-        // transfer tokens to borrower
         IERC20(r.token).safeTransfer(msg.sender, amount);
 
         emit Borrowed(msg.sender, symbol, amount, availableEth);
     }
 
-    // ---------------- Repay flows ----------------
+    /**
+     * @notice Repay loan with accumulated interest, returns the held collateral
+     */
     function repay() external nonReentrant {
         Loan storage loan = loans[msg.sender];
         require(loan.active, "no active loan");
@@ -295,65 +276,89 @@ contract LendingPool is AccessControl, ReentrancyGuard {
         uint256 interest = (loan.principal * r.interestRateBps * time_elasped + (denominator - 1)) / denominator;
         uint256 totalOwed = loan.principal + interest;
 
-        // pull tokens from borrower
         IERC20(r.token).safeTransferFrom(msg.sender, address(this), totalOwed);
 
-        // update reserve liquidity (lender pool receives repaid principal + interest)
         r.totalLiquidity += totalOwed;
-
         uint256 collateralToReturn = loan.collateral;
 
-        // clear loan
         loan.active = false;
         loan.principal = 0;
         loan.collateral = 0;
 
-        // return ETH collateral
         (bool ok, ) = payable(msg.sender).call{value: collateralToReturn}("");
         require(ok, "ETH refund failed");
 
         emit Repaid(msg.sender, loan.symbol, totalOwed, interest);
     }
 
-    // ---------------- Liquidation ----------------
-    // Anyone with LIQUIDATOR_ROLE (or permissionless if you prefer) can liquidate
-    function liquidate(
-        address borrower
-    ) external nonReentrant onlyRole(LIQUIDATOR_ROLE) {
+    /**
+     * @notice Propose a DAO Liquidation for a risky loan
+     * @param borrower The borrower address to flag for liquidation
+     */
+    function proposeDAOLiquidation(address borrower) external onlyRole(DAO_ROLE) {
+        require(loans[borrower].active, "no active loan");
+        require(!activeDaoLiquidationProposals[borrower], "already proposed");
+        
+        activeDaoLiquidationProposals[borrower] = true;
+        emit DAOLiquidationProposed(borrower, msg.sender);
+    }
+
+    /**
+     * @notice Execute an approved DAO liquidation. Requires DAO_ROLE.
+     *         Bypasses health checks natively because DAO verified the risk manually.
+     * @param borrower The address of the borrower to liquidate
+     */
+    function executeDAOLiquidation(address borrower) external nonReentrant onlyRole(DAO_ROLE) {
+        require(loans[borrower].active, "no active loan for borrower");
+        require(activeDaoLiquidationProposals[borrower], "no proposal active");
+
+        activeDaoLiquidationProposals[borrower] = false;
+        _executeLiquidation(borrower, msg.sender, LiquidationType.DAO_VERIFIED);
+    }
+
+    /**
+     * @notice Auto-liquidate an undercollateralized loan programmatically
+     * @param borrower Address of the borrower
+     */
+    function liquidate(address borrower) external nonReentrant onlyRole(LIQUIDATOR_ROLE) {
         Loan storage loan = loans[borrower];
         require(loan.active, "no active loan");
 
         Reserve storage r = reserves[loan.symbol];
         require(r.enabled, "reserve disabled");
 
-        // get ETH/USD price
-        uint256 ethUsdPrice = _getPriceAs1e18(r.priceFeed, "ETH/USD");
+        uint256 ethUsdPrice = _getPriceAs1e18(r.priceFeed);
         uint256 collateralUsdValue = (loan.collateral * ethUsdPrice) / 1e18;
-        uint256 requiredUsd = (loan.principal * collateralRatioBps) / BPS_DENOM;
+        
+        uint256 requiredRatioBps = r.isHighRisk ? HIGH_RISK_COLLATERAL_RATIO_BPS : collateralRatioBps;
+        uint256 requiredUsd = (loan.principal * requiredRatioBps) / BPS_DENOM;
 
         require(collateralUsdValue < requiredUsd, "loan healthy");
 
+        _executeLiquidation(borrower, msg.sender, LiquidationType.AUTOMATIC);
+    }
+
+    /**
+     * @dev Internal reusable method for executing liquidation math and transfers
+     */
+    function _executeLiquidation(address borrower, address liquidator, LiquidationType liqType) internal {
+        Loan storage loan = loans[borrower];
         uint256 seized = loan.collateral;
 
-        // clear loan
         loan.active = false;
         loan.principal = 0;
         loan.collateral = 0;
 
-        // NOTE: In production you would distribute seized collateral to a liquidation pool
-        // or to repay lenders; here we send to liquidator for simplicity.
-        (bool ok, ) = payable(msg.sender).call{value: seized}("");
+        (bool ok, ) = payable(liquidator).call{value: seized}("");
         require(ok, "ETH send failed");
 
-        emit Liquidated(borrower, msg.sender, seized);
+        emit Liquidated(borrower, liquidator, seized, liqType);
     }
 
-    // ---------------- Internal helpers ----------------
-    // Normalize price to 1e18 scale
-    function _getPriceAs1e18(
-        address priceFeed,
-        string memory _hint
-    ) internal view returns (uint256) {
+    /**
+     * @dev Normalize price from aggregator to 18 decimals
+     */
+    function _getPriceAs1e18(address priceFeed) internal view returns (uint256) {
         require(priceFeed != address(0), "no feed");
         AggregatorV3Interface feed = AggregatorV3Interface(priceFeed);
         (
@@ -368,7 +373,7 @@ contract LendingPool is AccessControl, ReentrancyGuard {
         require(answeredInRound >= roundId, "stalePrice");
         require(block.timestamp - updatedAt < 7200, "price too old");
         uint8 decimalsFeed = feed.decimals();
-        // scale to 1e18
+        
         if (decimalsFeed == 18) {
             return uint256(answer);
         } else if (decimalsFeed < 18) {
@@ -378,9 +383,10 @@ contract LendingPool is AccessControl, ReentrancyGuard {
         }
     }
 
-    // Fallback receive to accept ETH
+    /**
+     * @notice Fallback fallback to allow direct ETH deposits as collateral
+     */
     receive() external payable {
-        // allow direct ETH sends (user should call depositCollateral but we accept direct sends)
         collateralETH[msg.sender] += msg.value;
         emit CollateralDeposited(msg.sender, msg.value);
     }
