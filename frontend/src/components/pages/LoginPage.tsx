@@ -39,7 +39,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
         <NeoCard className="max-w-md w-full" padding="p-8">
           <form onSubmit={handleLogin} className="flex flex-col gap-6">
             <h1 className="text-4xl font-black text-center mb-2">
-              Welcome to DeFi<span className="text-blue-600">Lend</span>
+              <span className="text-white">Crypto</span> <span className="text-emerald-glow">Lend</span>
             </h1>
             <p className="text-center text-gray-600 -mt-4 mb-4">
               Login to your investor account.

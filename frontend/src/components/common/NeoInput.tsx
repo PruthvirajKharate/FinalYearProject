@@ -20,14 +20,14 @@ const NeoInput: React.FC<NeoInputProps> = ({
   onChange,
 }) => (
   <div className="w-full">
-    <label htmlFor={id} className="block text-sm font-bold mb-2">
+    <label htmlFor={id} className="block text-sm font-bold mb-2 text-obsidian-900 border-none">
       {label}
     </label>
     <input
       type={type}
       id={id}
       placeholder={placeholder}
-      className="w-full rounded-lg py-3 px-4 bg-white border border-gray-300 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+      className="w-full rounded-lg py-3 px-4 bg-obsidian-800 text-white border border-obsidian-700 placeholder-gray-500 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-glow focus:border-emerald-glow transition-all duration-200"
       value={value}
       onChange={onChange}
     />

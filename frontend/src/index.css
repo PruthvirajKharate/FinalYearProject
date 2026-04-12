@@ -8,5 +8,18 @@
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     "Liberation Mono", "Courier New", monospace;
-  /* ... */
+    
+  /* Emerald Matrix Premium Theme */
+  --color-obsidian-900: #0a0a0a;
+  --color-obsidian-800: #121212;
+  --color-obsidian-700: #1a1a1a;
+  --color-emerald-glow: #10b981;
+  --color-emerald-deep: #047857;
+  --color-neon-accent: #34d399;
+}
+
+@layer base {
+  body {
+    @apply bg-obsidian-900 text-gray-100;
+  }
 }

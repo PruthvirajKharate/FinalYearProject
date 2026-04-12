@@ -84,12 +84,13 @@ export default function App() {
     <>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap'); body { font-family: 'Poppins', sans-serif; }`}</style>
 
-      <div className="relative font-space min-h-screen w-full">
+      <div className="relative font-space min-h-screen w-full bg-obsidian-900 text-white">
+        {/* Dynamic Dark Mode Abstract Gradient */}
         <div
-          className="absolute inset-0 z-0"
+          className="absolute inset-0 z-0 pointer-events-none"
           style={{
-            backgroundImage: `radial-gradient(circle at 30% 70%, rgba(173, 216, 230, 0.35), transparent 60%), radial-gradient(circle at 70% 30%, rgba(255, 182, 193, 0.4), transparent 60%)`,
-            backgroundColor: "#fefcff",
+            backgroundImage: `radial-gradient(circle at 30% 70%, rgba(16, 185, 129, 0.15), transparent 60%), radial-gradient(circle at 70% 30%, rgba(52, 211, 153, 0.1), transparent 60%)`,
+            backgroundColor: "transparent",
           }}
         />
 
@@ -109,11 +110,7 @@ export default function App() {
                     onLogout={handleLogout}
                   />
                   <main className="flex-1 p-8 overflow-y-auto relative">
-                    <Header
-                      onOpenWallet={openWallet}
-                      isConnected={isConnected}
-                      walletData={walletData}
-                    />
+                    <Header />
                     <AnimatePresence mode="wait">
                       <AnimatedPage key={currentPage}>
                         {currentPage === "dashboard" && <DashboardPage />}
