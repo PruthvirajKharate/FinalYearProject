@@ -33,4 +33,16 @@ export class TransactionService {
             relations: ['user'], // Includes user details in the history
         });
     }
+
+    /**
+     * Fetches the transaction history for a specific user by their wallet address.
+     */
+    async getUserHistory(publicAddress: string, limit: number = 100): Promise<Transaction[]> {
+        return await this.transactionRepository.createQueryBuilder('transaction')
+            .leftJoinAndSelect('transaction.user', 'user')
+            .where('LOWER(user.publicAddress) = LOWER(:publicAddress)', { publicAddress })
+            .orderBy('transaction.createdAt', 'DESC')
+            .take(limit)
+            .getMany();
+    }
 }

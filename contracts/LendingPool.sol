@@ -254,6 +254,8 @@ contract LendingPool is AccessControl, ReentrancyGuard {
             timestamp: block.timestamp
         });
 
+        r.totalLiquidity -= amount;
+
         IERC20(r.token).safeTransfer(msg.sender, amount);
 
         emit Borrowed(msg.sender, symbol, amount, availableEth);

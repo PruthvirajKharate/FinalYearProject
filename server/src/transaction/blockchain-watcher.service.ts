@@ -19,7 +19,7 @@ export class BlockchainWatcherService implements OnModuleInit {
     private readonly logger = new Logger(BlockchainWatcherService.name);
     private provider: ethers.JsonRpcProvider;
     private contract: ethers.Contract;
-    private readonly CONTRACT_ADDRESS = "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9";
+    private readonly CONTRACT_ADDRESS = "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e";
 
     constructor(
         private readonly transactionService: TransactionService,
@@ -70,6 +70,11 @@ export class BlockchainWatcherService implements OnModuleInit {
             await this.handleDepositedEvent(event);
         });
 
+        this.contract.on("CollateralDeposited", async (...args) => {
+            const event = args[args.length - 1];
+            await this.handleCollateralDepositedEvent(event);
+        });
+
         this.contract.on("ReserveAdded", async (...args) => {
             const event = args[args.length - 1];
             await this.handleReserveAddedEvent(event);
@@ -101,6 +106,9 @@ export class BlockchainWatcherService implements OnModuleInit {
                 break;
             case "Deposited":
                 await this.handleDepositedEvent(event);
+                break;
+            case "CollateralDeposited":
+                await this.handleCollateralDepositedEvent(event);
                 break;
             case "ReserveAdded":
                 await this.handleReserveAddedEvent(event);
@@ -173,6 +181,7 @@ export class BlockchainWatcherService implements OnModuleInit {
             });
         } catch (err) {
             this.logger.error(`Error in handleBorrowedEvent: ${err.message}`);
+            require('fs').appendFileSync('borrow_error.log', `Error in handleBorrowedEvent: ${err.stack}\n`);
         }
     }
 
@@ -200,6 +209,30 @@ export class BlockchainWatcherService implements OnModuleInit {
             });
         } catch (err) {
             this.logger.error(`Error in handleDepositedEvent: ${err.message}`);
+        }
+    }
+
+    private async handleCollateralDepositedEvent(event: any) {
+        // Matches Solidity: event CollateralDeposited(address indexed user, uint256 amount);
+        const { user, amount } = event.args;
+        const amountFormatted = ethers.formatUnits(amount, 18);
+        const txHash = event.log?.transactionHash || event.transactionHash;
+
+        try {
+            await this.userService.findOrCreateUser(user);
+
+            await this.transactionService.recordTransaction({
+                txHash,
+                type: TRANSACTION_TYPE.COLLATERAL_DEPOSIT,
+                symbol: 'ETH',
+                tokenAmount: amountFormatted,
+                usdValue: (Number(amountFormatted) * 2000).toString(),
+                user: { publicAddress: user } as any,
+                blockNumber: (event.log?.blockNumber || event.blockNumber).toString()
+            });
+            this.logger.log(`[Event] CollateralDeposited: ${user} deposited ${amountFormatted} ETH`);
+        } catch (err) {
+            this.logger.error(`Error in handleCollateralDepositedEvent: ${err.message}`);
         }
     }
 

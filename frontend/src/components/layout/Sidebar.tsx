@@ -9,13 +9,14 @@ import {
   // X, // X was imported but not used, so I removed it.
   ChevronLeftCircle,
   ChevronRightCircle,
+  Clock,
 } from "lucide-react";
 import NeoButton from "../common/NeoButton";
 
 // --- Type Definitions ---
 
 // 1. Define the specific page names allowed for navigation
-type PageName = "dashboard" | "invest" | "borrow" | "liquidate";
+type PageName = "dashboard" | "invest" | "borrow" | "liquidate" | "history";
 
 // 2. Define the shape of the props this component accepts
 interface SidebarProps {
@@ -42,6 +43,7 @@ const Sidebar: React.FC<SidebarProps> = ({ setCurrentPage, onLogout }) => {
     { name: "Invest", icon: PiggyBank, page: "invest" },
     { name: "Borrow", icon: ArrowDownUp, page: "borrow" },
     { name: "Liquidate", icon: Flame, page: "liquidate" },
+    { name: "History", icon: Clock, page: "history" },
   ];
 
   return (

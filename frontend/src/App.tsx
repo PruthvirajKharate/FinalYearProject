@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { AnimatePresence } from "framer-motion";
+import { Toaster } from "react-hot-toast";
 import Sidebar from "./components/layout/Sidebar";
 import Header from "./components/layout/Header";
 import WalletPopup from "./components/ui/WalletPopup";
@@ -8,6 +9,7 @@ import DashboardPage from "./components/pages/DashboardPage";
 import InvestPage from "./components/pages/InvestPage";
 import BorrowPage from "./components/pages/BorrowPage";
 import LiquidatePage from "./components/pages/LiquidatePage";
+import HistoryPage from "./components/pages/HistoryPage";
 import AnimatedPage from "./components/common/AnimatedPage";
 
 // 1. UPDATED interface to match WalletPopup.tsx
@@ -17,11 +19,11 @@ export interface ConnectionData {
   chainId?: number; // <-- Now optional
 }
 
-type NavPageName = "dashboard" | "invest" | "borrow" | "liquidate";
+type NavPageName = "dashboard" | "invest" | "borrow" | "liquidate" | "history";
 type PageName = "login" | NavPageName;
 
 export default function App() {
-  const [currentPage, setCurrentPage] = useState<PageName>("login");
+  const [currentPage, setCurrentPage] = useState<PageName>("dashboard");
   const [showWalletPopup, setShowWalletPopup] = useState(false);
   const [walletData, setWalletData] = useState<ConnectionData | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -52,13 +54,13 @@ export default function App() {
 
     const formattedAddress = `${connectionData.address.slice(
       0,
-      6
+      6,
     )}...${connectionData.address.slice(-4)}`;
     console.log(`Connected to: ${formattedAddress}`);
 
     localStorage.setItem(
       "walletConnection",
-      JSON.stringify(cleanConnectionData)
+      JSON.stringify(cleanConnectionData),
     );
   };
 
@@ -84,7 +86,7 @@ export default function App() {
     <>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap'); body { font-family: 'Poppins', sans-serif; }`}</style>
 
-      <div className="relative font-space min-h-screen w-full bg-obsidian-900 text-white">
+      <div className="relative font-space min-h-screen w-full bg-white text-black">
         {/* Dynamic Dark Mode Abstract Gradient */}
         <div
           className="absolute inset-0 z-0 pointer-events-none"
@@ -109,7 +111,7 @@ export default function App() {
                     setCurrentPage={handleSetCurrentPage}
                     onLogout={handleLogout}
                   />
-                  <main className="flex-1 p-8 overflow-y-auto relative">
+                  <main className="flex-1 p-8 min-w-0 relative">
                     <Header />
                     <AnimatePresence mode="wait">
                       <AnimatedPage key={currentPage}>
@@ -117,6 +119,7 @@ export default function App() {
                         {currentPage === "invest" && <InvestPage />}
                         {currentPage === "borrow" && <BorrowPage />}
                         {currentPage === "liquidate" && <LiquidatePage />}
+                        {currentPage === "history" && <HistoryPage />}
                       </AnimatedPage>
                     </AnimatePresence>
                   </main>
@@ -134,6 +137,8 @@ export default function App() {
             />
           )}
         </AnimatePresence>
+
+        <Toaster position="bottom-right" reverseOrder={false} />
       </div>
     </>
   );

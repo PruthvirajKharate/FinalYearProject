@@ -18,7 +18,7 @@ const DashboardPage: React.FC = () => {
     args: address ? [address] : undefined,
   });
 
-  // 2. Read Any Isolated Collateral
+  // 2. Read Any Isolated Collateral (floating ETH not yet locked in a loan)
   const { data: pureCollateral } = useReadContract({
     address: CONTRACTS.lendingPool.address as `0x${string}`,
     abi: CONTRACTS.lendingPool.abi,
@@ -35,12 +35,19 @@ const DashboardPage: React.FC = () => {
   const symbol = isActive ? ethers.decodeBytes32String(symbolBytes) : "None";
   const formattedPrincipal = isActive ? formatUnits(principalRaw, 18) : "0";
   
-  // They either have collateral locked in an active loan, or just floating collateral
-  const totalEthCollateral = isActive ? collateralLocked : (pureCollateral || 0n);
-  const formattedCollateral = formatEther(totalEthCollateral as bigint);
+  // Total ETH = collateral locked inside the loan + any floating collateral deposited after
+  const loanCollateral = isActive ? (collateralLocked as bigint) : 0n;
+  const floatingCollateral = (pureCollateral as bigint) || 0n;
+  const totalEthCollateral = loanCollateral + floatingCollateral;
+  const formattedCollateral = formatEther(totalEthCollateral);
 
-  // Health Factor mock logic based on LTV
-  const healthFactor = isActive ? 1.5 : 0; 
+  // Health Factor: calculate based on collateral USD value vs principal
+  let healthFactor = 0;
+  if (isActive && principalRaw > 0n) {
+    const collateralUsd = Number(formatEther(loanCollateral)) * 2000; // mock ETH price
+    const debtUsd = Number(formatUnits(principalRaw, 18));
+    healthFactor = debtUsd > 0 ? collateralUsd / debtUsd : 0;
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -53,16 +60,16 @@ const DashboardPage: React.FC = () => {
           color="border-t-green-400"
         />
         <StatCard
-          title="ETH Locked"
-          value={`${formattedCollateral} ETH`}
+          title="ETH Locked (Total)"
+          value={`${Number(formattedCollateral).toFixed(4)} ETH`}
           color="border-t-blue-500"
         />
         <StatCard
           title="Active Debt"
-          value={isActive ? `${formattedPrincipal} ${symbol}` : "$0.00"}
+          value={isActive ? `${Number(formattedPrincipal).toLocaleString()} ${symbol}` : "$0.00"}
           color="border-t-pink-500"
         />
-        <StatCard title="Account Risk" value={isActive ? "SAFE" : "IDLE"} color="border-t-yellow-500" />
+        <StatCard title="Account Risk" value={isActive ? (healthFactor < 1.5 ? "AT RISK" : "SAFE") : "IDLE"} color={isActive && healthFactor < 1.5 ? "border-t-red-500" : "border-t-yellow-500"} />
       </div>
 
       <NeoCard>
@@ -75,14 +82,16 @@ const DashboardPage: React.FC = () => {
                   <th className="p-4 font-bold">Asset Borrowed</th>
                   <th className="p-4 font-bold">Principal Debt</th>
                   <th className="p-4 font-bold">Anchored Collateral</th>
+                  <th className="p-4 font-bold">Additional Collateral</th>
                   <th className="p-4 font-bold">Status</th>
                 </tr>
               </thead>
               <tbody>
                 <tr className="hover:bg-gray-50 border-b border-gray-200">
                   <td className="p-4 flex items-center gap-2 font-black">{symbol}</td>
-                  <td className="p-4 font-mono text-red-500 italic">{formattedPrincipal} {symbol}</td>
-                  <td className="p-4 font-mono text-blue-600">{formatEther(collateralLocked as bigint)} ETH</td>
+                  <td className="p-4 font-mono text-red-500 italic">{Number(formattedPrincipal).toLocaleString()} {symbol}</td>
+                  <td className="p-4 font-mono text-blue-600">{Number(formatEther(loanCollateral)).toFixed(4)} ETH</td>
+                  <td className="p-4 font-mono text-emerald-600">{Number(formatEther(floatingCollateral)).toFixed(4)} ETH</td>
                   <td className="p-4"><span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-bold border border-green-300 shadow-sm">ACTIVE</span></td>
                 </tr>
               </tbody>
