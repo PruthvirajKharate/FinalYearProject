@@ -118,7 +118,7 @@ const Sidebar: React.FC<SidebarProps> = ({ setCurrentPage, onLogout }) => {
           {isOpen && (
             <div className="shrink-0">
               <p className="font-bold">Tanmay Chaudhari</p>
-              <p className="text-xs text-gray-500">Investor</p>
+              {/* <p className="text-xs text-gray-500">Investor</p> */}
             </div>
           )}
         </div>

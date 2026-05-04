@@ -166,7 +166,7 @@ const Sidebar = ({ setCurrentPage, onLogout }) => {
           {isOpen && (
             <div>
               <p className="font-bold">Tanmay Chaudhari</p>
-              <p className="text-xs text-gray-500">Investor</p>
+              {/* <p className="text-xs text-gray-500">Investor</p> */}
             </div>
           )}
         </div>
@@ -278,9 +278,9 @@ const LoginPage = ({ onLogin }) => {
             <h1 className="text-4xl font-black text-center mb-2">
               Welcome to DeFi<span className="text-blue-600">Lend</span>
             </h1>
-            <p className="text-center text-gray-600 -mt-4 mb-4">
+            {/* <p className="text-center text-gray-600 -mt-4 mb-4">
               Login to your investor account.
-            </p>
+            </p> */}
             <NeoInput
               label="Email"
               id="email"
