@@ -5,7 +5,7 @@ import YenToken from "../../artifacts/contracts/YenToken.sol/YenToken.json";
 
 export const CONTRACTS = {
   lendingPool: {
-    address: "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e",
+    address: "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
     abi: LendingPool.abi,
   },
   usdToken: {

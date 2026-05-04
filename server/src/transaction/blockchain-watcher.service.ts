@@ -19,7 +19,7 @@ export class BlockchainWatcherService implements OnModuleInit {
     private readonly logger = new Logger(BlockchainWatcherService.name);
     private provider: ethers.JsonRpcProvider;
     private contract: ethers.Contract;
-    private readonly CONTRACT_ADDRESS = "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e";
+    private readonly CONTRACT_ADDRESS = "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9";
 
     constructor(
         private readonly transactionService: TransactionService,
@@ -271,7 +271,7 @@ export class BlockchainWatcherService implements OnModuleInit {
     private async handleLiquidatedEvent(event: any) {
         // event Liquidated(address indexed borrower, address indexed liquidator, uint256 seizedCollateral, LiquidationType liquidationType);
         const { borrower, liquidator, seizedCollateral, liquidationType } = event.args;
-        
+
         const seizedFormatted = ethers.formatUnits(seizedCollateral, 18);
         const txHash = event.log?.transactionHash || event.transactionHash;
 
@@ -287,7 +287,7 @@ export class BlockchainWatcherService implements OnModuleInit {
                 type: mappedLiqType === LIQUIDATION_TYPE.DAO_VERIFIED ? TRANSACTION_TYPE.DAO_LIQUIDATION_EXECUTED : TRANSACTION_TYPE.LIQUIDATE,
                 symbol: 'ETH', // seized collateral is ETH
                 tokenAmount: seizedFormatted,
-                usdValue: '0', 
+                usdValue: '0',
                 user: { publicAddress: borrower } as any,
                 blockNumber: (event.log?.blockNumber || event.blockNumber).toString()
             });
@@ -309,14 +309,14 @@ export class BlockchainWatcherService implements OnModuleInit {
             await this.transactionService.recordTransaction({
                 txHash,
                 type: TRANSACTION_TYPE.PROPOSAL_CREATED,
-                symbol: 'N/A', 
+                symbol: 'N/A',
                 tokenAmount: '0',
-                usdValue: '0', 
+                usdValue: '0',
                 user: { publicAddress: proposer } as any,
                 blockNumber: (event.log?.blockNumber || event.blockNumber).toString()
             });
             this.logger.log(`[Event] DAO Proposal Created for liquidating: ${borrower} by ${proposer}`);
-        } catch(err) {
+        } catch (err) {
             this.logger.error(`Error in handleDAOLiquidationProposedEvent: ${err.message}`);
         }
     }
