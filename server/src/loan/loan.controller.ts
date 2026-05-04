@@ -9,6 +9,15 @@ export class LoanController {
     constructor(private readonly loanService: LoanService) { }
 
     /**
+     * GET /loans/active
+     * Returns ALL active loans across all users (used by the Liquidation dashboard).
+     */
+    @Get('active')
+    async getAllActiveLoans() {
+        return await this.loanService.findAllActiveLoans();
+    }
+
+    /**
      * GET /loans/active/:address
      * Fetches all current unpaid loans for a specific user.
      */

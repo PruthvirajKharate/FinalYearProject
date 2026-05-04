@@ -14,6 +14,7 @@ interface NeoButtonProps {
   variant?: Variant;
   type?: "button" | "submit" | "reset";
   isOpen?: boolean; // This prop was in your original but is not used
+  disabled?: boolean;
 }
 
 const NeoButton: React.FC<NeoButtonProps> = ({
@@ -25,6 +26,7 @@ const NeoButton: React.FC<NeoButtonProps> = ({
   variant = "primary",
   type = "button",
   isOpen, // Note: Your tsconfig will flag this as an unused parameter
+  disabled = false,
 }) => {
   // 3. Explicitly type this object to match the 'Variant' type
   const colorClasses: Record<Variant, string> = {
@@ -40,11 +42,14 @@ const NeoButton: React.FC<NeoButtonProps> = ({
 
   return (
     <motion.button
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.99 }}
+      whileHover={disabled ? {} : { scale: 1.02 }}
+      whileTap={disabled ? {} : { scale: 0.99 }}
       onClick={onClick}
       type={type}
-      className={`font-bold border border-transparent p-3 rounded-lg hover:shadow-sm active:shadow-sm transition-all duration-200 flex items-center gap-2 cursor-pointer ${
+      disabled={disabled}
+      className={`font-bold border border-transparent p-3 rounded-lg hover:shadow-sm active:shadow-sm transition-all duration-200 flex items-center gap-2 ${
+        disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+      } ${
         colorClasses[variant]
       } ${fullWidth ? "w-full" : ""} ${className}`}
     >

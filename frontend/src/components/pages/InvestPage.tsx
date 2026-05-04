@@ -12,7 +12,7 @@ const InvestPage = () => {
   const { address } = useAccount();
   const [depositAmount, setDepositAmount] = useState("");
   // Removed unused withdrawAmount state
-  
+
   const { writeContractAsync } = useWriteContract();
 
   // Faucet Logic 
@@ -23,7 +23,7 @@ const InvestPage = () => {
         address: CONTRACTS.usdToken.address as `0x${string}`,
         abi: CONTRACTS.usdToken.abi,
         functionName: 'faucet',
-        args: [address, parseUnits("10000", 0)], 
+        args: [address, parseUnits("10000", 0)],
       });
       alert("Successfully minted 10,000 USD Tokens!");
     } catch (e: any) {
@@ -48,7 +48,7 @@ const InvestPage = () => {
         functionName: 'deposit',
         args: [ethers.encodeBytes32String("USD") as `0x${string}`, parseUnits(depositAmount, 18)],
       });
-    } catch(e: any) {
+    } catch (e: any) {
       alert("Deposit Error: " + e.message);
     }
   };
@@ -56,10 +56,10 @@ const InvestPage = () => {
   return (
     <div className="flex flex-col gap-8">
       <div className="flex justify-between items-center">
-         <h1 className="text-5xl font-black">Invest (Lending Pool)</h1>
-         <NeoButton variant="secondary" onClick={handleFaucet}>
-            💦 Request Mock $10k USD
-         </NeoButton>
+        <h1 className="text-5xl font-black">Invest (Lending Pool)</h1>
+        <NeoButton variant="secondary" onClick={handleFaucet}>
+          Request Mock $10k USD
+        </NeoButton>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -72,9 +72,9 @@ const InvestPage = () => {
               color="border-t-green-400"
             />
             <StatCard
-               title="Risk Tier"
-               value="LOW RISK"
-               color="border-t-blue-400"
+              title="Risk Tier"
+              value="LOW RISK"
+              color="border-t-blue-400"
             />
           </div>
         </NeoCard>
