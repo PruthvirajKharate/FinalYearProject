@@ -1,40 +1,17 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { motion, AnimatePresence } from "framer-motion";
-import { AlertTriangle, CheckCircle, Flame, RefreshCw, ShieldAlert, Activity } from "lucide-react";
+import { AlertTriangle, CheckCircle, Flame, RefreshCw, ShieldAlert, Activity, FlaskConical, RotateCcw, TrendingDown, Zap } from "lucide-react";
 import { ethers } from "ethers";
 import toast from "react-hot-toast";
 import NeoCard from "../common/NeoCard";
 import NeoButton from "../common/NeoButton";
 import { CONTRACTS } from "../../contracts";
 
-// Minimal ABI for Chainlink AggregatorV3Interface (price feed)
-const AGGREGATOR_ABI = [
-  {
-    inputs: [],
-    name: "latestRoundData",
-    outputs: [
-      { name: "roundId", type: "uint80" },
-      { name: "answer", type: "int256" },
-      { name: "startedAt", type: "uint256" },
-      { name: "updatedAt", type: "uint256" },
-      { name: "answeredInRound", type: "uint80" },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "decimals",
-    outputs: [{ name: "", type: "uint8" }],
-    stateMutability: "view",
-    type: "function",
-  },
-];
-
 // Constants matching the smart contract
 const BPS_DENOM = 10000n;
 const HIGH_RISK_COLLATERAL_RATIO_BPS = 20000n;
+const DEFAULT_ETH_PRICE = 2000; // Default MockAggregator price ($2,000)
 
 interface LoanFromAPI {
   id: number;
@@ -58,6 +35,13 @@ interface EnrichedPosition {
   isActive: boolean;
 }
 
+interface LiquidationEvent {
+  borrowerAddress: string;
+  assetSymbol: string;
+  timestamp: Date;
+  source: "bot" | "manual";
+}
+
 const LiquidatePage: React.FC = () => {
   const { isConnected } = useAccount();
   const [positions, setPositions] = useState<EnrichedPosition[]>([]);
@@ -66,11 +50,32 @@ const LiquidatePage: React.FC = () => {
   const [ethUsdPrice, setEthUsdPrice] = useState<number>(0);
   const [liquidatingAddress, setLiquidatingAddress] = useState<string | null>(null);
 
-  // Wagmi hook for writing to the contract (liquidation)
+  // Liquidation activity log
+  const [liquidationEvents, setLiquidationEvents] = useState<LiquidationEvent[]>([]);
+  const prevPositionsRef = useRef<EnrichedPosition[]>([]);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [isAutoPolling, setIsAutoPolling] = useState(false);
+
+  // Price Simulator state
+  const [simPriceInput, setSimPriceInput] = useState<string>("");
+  const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
+
+  // Wagmi hook for writing to the contract (liquidation + price simulation)
   const { writeContract, data: txHash, isPending: isWritePending, error: writeError } = useWriteContract();
 
-  // Wait for tx confirmation
+  // Separate hook for price simulation writes
+  const {
+    writeContract: writePriceContract,
+    data: priceTxHash,
+    isPending: isPriceWritePending,
+    error: priceWriteError,
+  } = useWriteContract();
+
+  // Wait for tx confirmation (liquidation)
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash: txHash });
+
+  // Wait for price change tx confirmation
+  const { isLoading: isPriceConfirming, isSuccess: isPriceConfirmed } = useWaitForTransactionReceipt({ hash: priceTxHash });
 
   /**
    * Fetches active loans from the NestJS API, then reads on-chain state
@@ -121,11 +126,16 @@ const LiquidatePage: React.FC = () => {
           const symbolBytes32 = onChainLoan.symbol;
           const reserve = await lendingPool.reserves(symbolBytes32);
 
-          // Read ETH/USD price from the price feed
-          const aggregator = new ethers.Contract(reserve.priceFeed, AGGREGATOR_ABI, provider);
-          const feedDecimals: bigint = BigInt(await aggregator.decimals());
+          // Read ETH/USD price from the price feed (MockAggregator)
+          const aggregator = new ethers.Contract(
+            reserve.priceFeed,
+            CONTRACTS.mockAggregator.abi,
+            provider
+          );
+          const feedDecimals: bigint = BigInt(Number(await aggregator.decimals()));
           const roundData = await aggregator.latestRoundData();
-          const answer: bigint = roundData.answer;
+          // Index access because compiled ABI has unnamed return params
+          const answer: bigint = BigInt(roundData[1]);
 
           // Normalize price to 1e18 (matching contract's _getPriceAs1e18)
           let ethUsdPrice1e18: bigint;
@@ -142,12 +152,12 @@ const LiquidatePage: React.FC = () => {
           setEthUsdPrice(ethPrice);
 
           // Calculate health factor (matching contract's liquidation check)
-          const collateral: bigint = onChainLoan.collateral;
-          const principal: bigint = onChainLoan.principal;
+          const collateral: bigint = BigInt(onChainLoan.collateral);
+          const principal: bigint = BigInt(onChainLoan.principal);
           const isHighRisk: boolean = reserve.isHighRisk;
 
           const collateralUsdValue = (collateral * ethUsdPrice1e18) / (10n ** 18n);
-          const requiredRatioBps = isHighRisk ? HIGH_RISK_COLLATERAL_RATIO_BPS : collateralRatioBps;
+          const requiredRatioBps = isHighRisk ? HIGH_RISK_COLLATERAL_RATIO_BPS : BigInt(collateralRatioBps);
           const requiredUsd = (principal * requiredRatioBps) / BPS_DENOM;
 
           // Health factor: collateralUsdValue / requiredUsd
@@ -184,6 +194,13 @@ const LiquidatePage: React.FC = () => {
 
   useEffect(() => {
     fetchAndEnrichPositions();
+    // Cleanup polling on unmount
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
   }, [fetchAndEnrichPositions]);
 
   // Handle liquidation result
@@ -209,6 +226,60 @@ const LiquidatePage: React.FC = () => {
     }
   }, [writeError]);
 
+  // Handle price simulation result — start auto-polling to detect bot liquidations
+  useEffect(() => {
+    if (isPriceConfirmed) {
+      toast.success("Oracle price updated! Watching for bot liquidations...", { icon: "🧪" });
+      fetchAndEnrichPositions();
+      // Start auto-polling every 8 seconds to detect bot liquidations
+      if (pollingRef.current) clearInterval(pollingRef.current);
+      setIsAutoPolling(true);
+      pollingRef.current = setInterval(() => {
+        fetchAndEnrichPositions();
+      }, 8000);
+    }
+  }, [isPriceConfirmed, fetchAndEnrichPositions]);
+
+  // Detect positions that disappeared (liquidated by the bot)
+  useEffect(() => {
+    if (prevPositionsRef.current.length > 0 && !loading) {
+      const currentAddresses = new Set(positions.map((p) => p.borrowerAddress));
+      const liquidated = prevPositionsRef.current.filter(
+        (prev) => !currentAddresses.has(prev.borrowerAddress)
+      );
+      for (const liq of liquidated) {
+        const shortAddr = `${liq.borrowerAddress.slice(0, 6)}...${liq.borrowerAddress.slice(-4)}`;
+        toast(`🤖 Bot liquidated ${shortAddr}`, {
+          icon: "🔥",
+          duration: 6000,
+          style: { background: "#FEF2F2", border: "2px solid #EF4444", fontWeight: "bold" },
+        });
+        setLiquidationEvents((prev) => [
+          {
+            borrowerAddress: liq.borrowerAddress,
+            assetSymbol: liq.assetSymbol,
+            timestamp: new Date(),
+            source: "bot",
+          },
+          ...prev,
+        ]);
+      }
+      // Stop polling if no more active positions remain
+      if (positions.length === 0 && pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+        setIsAutoPolling(false);
+      }
+    }
+    prevPositionsRef.current = positions;
+  }, [positions, loading]);
+
+  useEffect(() => {
+    if (priceWriteError) {
+      toast.error(`Price update failed: ${priceWriteError.message?.slice(0, 100)}`);
+    }
+  }, [priceWriteError]);
+
   const handleLiquidate = (borrowerAddress: string) => {
     if (!isConnected) {
       toast.error("Connect your wallet first.");
@@ -222,6 +293,54 @@ const LiquidatePage: React.FC = () => {
       args: [borrowerAddress],
     });
   };
+
+  /**
+   * Calls MockAggregator.setAnswer() to change the ETH/USD oracle price.
+   * This directly affects health factor calculations on-chain.
+   */
+  const handleSetPrice = (priceUsd: number) => {
+    if (!isConnected) {
+      toast.error("Connect your wallet first.");
+      return;
+    }
+    if (priceUsd <= 0) {
+      toast.error("Price must be greater than 0.");
+      return;
+    }
+
+    // MockAggregator uses 8 decimals, so $2000 = 2000 * 10^8 = 200000000000
+    const priceWith8Decimals = BigInt(Math.round(priceUsd * 1e8));
+
+    toast.loading(`Setting ETH price to $${priceUsd.toLocaleString()}...`, { id: "price-sim" });
+
+    writePriceContract({
+      address: CONTRACTS.mockAggregator.address as `0x${string}`,
+      abi: CONTRACTS.mockAggregator.abi,
+      functionName: "setAnswer",
+      args: [priceWith8Decimals],
+    });
+  };
+
+  const handleCrashPrice = () => {
+    const price = parseFloat(simPriceInput);
+    if (isNaN(price) || price <= 0) {
+      toast.error("Enter a valid price.");
+      return;
+    }
+    handleSetPrice(price);
+  };
+
+  const handleRestorePrice = () => {
+    handleSetPrice(DEFAULT_ETH_PRICE);
+    setSimPriceInput("");
+  };
+
+  // Dismiss loading toast when price tx settles
+  useEffect(() => {
+    if (isPriceConfirmed || priceWriteError) {
+      toast.dismiss("price-sim");
+    }
+  }, [isPriceConfirmed, priceWriteError]);
 
   // Derived stats
   const atRiskCount = positions.filter((p) => p.healthFactor < 1.0).length;
@@ -247,6 +366,8 @@ const LiquidatePage: React.FC = () => {
   };
 
   const shortenAddress = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+
+  const isPriceActionPending = isPriceWritePending || isPriceConfirming;
 
   return (
     <div className="flex flex-col gap-8">
@@ -291,6 +412,117 @@ const LiquidatePage: React.FC = () => {
           </span>
         </div>
       )}
+
+      {/* 🧪 Price Simulator Panel */}
+      <div className="border-2 border-amber-300 bg-amber-50/50 rounded-xl overflow-hidden">
+        {/* Simulator Header (toggle) */}
+        <button
+          onClick={() => setIsSimulatorOpen(!isSimulatorOpen)}
+          className="w-full flex items-center justify-between p-4 hover:bg-amber-100/50 transition-colors cursor-pointer"
+        >
+          <div className="flex items-center gap-2">
+            <FlaskConical className="w-5 h-5 text-amber-600" />
+            <span className="font-bold text-amber-800">Price Simulator</span>
+            <span className="text-xs bg-amber-200 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+              Testnet Only
+            </span>
+          </div>
+          <motion.span
+            animate={{ rotate: isSimulatorOpen ? 180 : 0 }}
+            className="text-amber-600"
+          >
+            ▼
+          </motion.span>
+        </button>
+
+        {/* Simulator Body */}
+        <AnimatePresence>
+          {isSimulatorOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <div className="p-4 pt-0 border-t border-amber-200">
+                <p className="text-xs text-amber-700 mb-4">
+                  Change the on-chain MockAggregator ETH/USD price to simulate market crashes.
+                  This triggers real health factor changes and enables the liquidation bot to auto-liquidate underwater positions.
+                </p>
+
+                <div className="flex flex-wrap items-end gap-3">
+                  {/* Price Input */}
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="block text-xs font-bold text-amber-700 mb-1">
+                      New ETH/USD Price ($)
+                    </label>
+                    <input
+                      type="number"
+                      value={simPriceInput}
+                      onChange={(e) => setSimPriceInput(e.target.value)}
+                      placeholder={`Current: $${ethUsdPrice.toLocaleString()}`}
+                      className="w-full px-3 py-2.5 border-2 border-amber-300 rounded-lg bg-white text-black font-mono font-bold focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-200 transition-all"
+                      min="1"
+                      step="1"
+                      disabled={isPriceActionPending}
+                    />
+                  </div>
+
+                  {/* Crash Price Button */}
+                  <NeoButton
+                    onClick={handleCrashPrice}
+                    variant="danger"
+                    className="gap-1.5 py-2.5"
+                    disabled={isPriceActionPending || !simPriceInput}
+                  >
+                    {isPriceActionPending ? (
+                      <span className="flex items-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        {isPriceConfirming ? "Confirming..." : "Signing..."}
+                      </span>
+                    ) : (
+                      <>
+                        <TrendingDown className="w-4 h-4" />
+                        Set Price
+                      </>
+                    )}
+                  </NeoButton>
+
+                  {/* Restore Button */}
+                  <NeoButton
+                    onClick={handleRestorePrice}
+                    variant="secondary"
+                    className="gap-1.5 py-2.5"
+                    disabled={isPriceActionPending}
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Restore ${DEFAULT_ETH_PRICE.toLocaleString()}
+                  </NeoButton>
+                </div>
+
+                {/* Quick Crash Presets */}
+                <div className="flex flex-wrap gap-2 mt-3">
+                  <span className="text-xs text-amber-600 font-medium self-center">Quick:</span>
+                  {[500, 100, 50, 10].map((price) => (
+                    <button
+                      key={price}
+                      onClick={() => {
+                        setSimPriceInput(price.toString());
+                        handleSetPrice(price);
+                      }}
+                      disabled={isPriceActionPending}
+                      className="px-3 py-1 text-xs font-bold bg-white border border-amber-300 rounded-lg hover:bg-amber-100 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      ${price}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {/* Positions Table */}
       <NeoCard padding="p-0">
@@ -431,6 +663,59 @@ const LiquidatePage: React.FC = () => {
           </div>
         )}
       </NeoCard>
+
+      {/* Liquidation Activity Feed */}
+      {liquidationEvents.length > 0 && (
+        <NeoCard padding="p-0">
+          <div className="p-4 border-b-2 border-gray-100 flex items-center justify-between">
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <Zap className="w-5 h-5 text-red-500" />
+              Liquidation Activity
+              {isAutoPolling && (
+                <span className="flex items-center gap-1 text-xs font-medium text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">
+                  <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+                  Live
+                </span>
+              )}
+            </h2>
+            <button
+              onClick={() => setLiquidationEvents([])}
+              className="text-xs text-gray-400 hover:text-gray-600 cursor-pointer"
+            >
+              Clear
+            </button>
+          </div>
+          <div className="divide-y divide-gray-100 max-h-64 overflow-y-auto">
+            {liquidationEvents.map((evt, i) => (
+              <motion.div
+                key={`${evt.borrowerAddress}-${evt.timestamp.getTime()}`}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.05 }}
+                className="flex items-center gap-3 p-3 hover:bg-red-50/50 transition-colors"
+              >
+                <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                  <Flame className="w-4 h-4 text-red-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold">
+                    <span className="text-red-600">{evt.assetSymbol}</span> loan liquidated
+                    <span className="ml-1 text-xs font-medium bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                      {evt.source === "bot" ? "🤖 Auto" : "👤 Manual"}
+                    </span>
+                  </p>
+                  <p className="text-xs text-gray-500 font-mono truncate">
+                    Borrower: {evt.borrowerAddress}
+                  </p>
+                </div>
+                <span className="text-xs text-gray-400 whitespace-nowrap shrink-0">
+                  {evt.timestamp.toLocaleTimeString()}
+                </span>
+              </motion.div>
+            ))}
+          </div>
+        </NeoCard>
+      )}
     </div>
   );
 };

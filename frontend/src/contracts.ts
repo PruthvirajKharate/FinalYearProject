@@ -2,6 +2,7 @@ import LendingPool from "../../artifacts/contracts/LendingPool.sol/LendingPool.j
 import USDToken from "../../artifacts/contracts/USDToken.sol/USDToken.json";
 import RupeeToken from "../../artifacts/contracts/RupeeToken.sol/RupeeToken.json";
 import YenToken from "../../artifacts/contracts/YenToken.sol/YenToken.json";
+import MockAggregator from "../../artifacts/contracts/MockAggregator.sol/MockAggregator.json";
 
 export const CONTRACTS = {
   lendingPool: {
@@ -19,5 +20,9 @@ export const CONTRACTS = {
   yenToken: {
     address: "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
     abi: YenToken.abi,
-  }
+  },
+  mockAggregator: {
+    address: "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    abi: MockAggregator.abi,
+  },
 };
