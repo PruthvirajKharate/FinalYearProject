@@ -61,9 +61,8 @@ const NeoButton = ({
       transition={{ type: "spring", stiffness: 400, damping: 15 }}
       onClick={onClick}
       type={type}
-      className={`font-bold py-3 px-5 border border-transparent rounded-lg shadow-md hover:shadow-lg active:shadow-sm transition-all duration-200 flex items-center justify-center gap-2 ${
-        colorClasses[variant]
-      } ${fullWidth ? "w-full" : ""} ${className}`}
+      className={`font-bold py-3 px-5 border border-transparent rounded-lg shadow-md hover:shadow-lg active:shadow-sm transition-all duration-200 flex items-center justify-center gap-2 ${colorClasses[variant]
+        } ${fullWidth ? "w-full" : ""} ${className}`}
     >
       {Icon && <Icon className="w-5 h-5" />}
       {children}
@@ -156,18 +155,17 @@ const Sidebar = ({ setCurrentPage, onLogout }) => {
 
       <div className="mt-auto flex flex-col gap-4">
         <div
-          className={`flex items-center gap-3 mb-4 ${
-            isOpen ? "px-2" : "justify-center"
-          }`}
+          className={`flex items-center gap-3 mb-4 ${isOpen ? "px-2" : "justify-center"
+            }`}
         >
           <div className=" flex items-center gap-2" />
           <div className="w-10 h-10 rounded-3xl border-2 flex items-center justify-center font-bold text-lg bg-gray-100 border-gray-300">
-            HJ
+            TC
           </div>
 
           {isOpen && (
             <div>
-              <p className="font-bold">Hemraj Jadhav</p>
+              <p className="font-bold">Tanmay Chaudhari</p>
               <p className="text-xs text-gray-500">Investor</p>
             </div>
           )}
@@ -563,9 +561,8 @@ const LiquidatePage = () => {
                   >
                     <td className="py-3 px-4 font-mono">{pos.user}</td>
                     <td
-                      className={`py-3 px-4 font-bold ${
-                        risky ? "text-red-500" : "text-green-500"
-                      }`}
+                      className={`py-3 px-4 font-bold ${risky ? "text-red-500" : "text-green-500"
+                        }`}
                     >
                       <div className="flex items-center gap-2">
                         {risky ? (

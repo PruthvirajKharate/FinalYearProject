@@ -61,17 +61,15 @@ const Sidebar: React.FC<SidebarProps> = ({ setCurrentPage, onLogout }) => {
         <motion.h1
           initial={{ opacity: 1, x: 0 }}
           animate={{ opacity: isOpen ? 1 : 0, x: isOpen ? 0 : -100 }}
-          className={`text-3xl font-black flex ${
-            isOpen ? "w-full" : "w-0"
-          } transition-all duration-100 ease-out`}
+          className={`text-3xl font-black flex ${isOpen ? "w-full" : "w-0"
+            } transition-all duration-100 ease-out`}
         >
           <span className="font-space font-bold text-4xl">Crypto</span>
           <span className="text-blue-600 font-space text-4xl">Fi</span>
         </motion.h1>
         <div
-          className={`absolute shrink-0 transition-all ${
-            isOpen ? "right-5" : "left-8" // 2rem / 32px
-          } `}
+          className={`absolute shrink-0 transition-all ${isOpen ? "right-5" : "left-8" // 2rem / 32px
+            } `}
         >
           {isOpen ? (
             <ChevronLeftCircle
@@ -92,18 +90,16 @@ const Sidebar: React.FC<SidebarProps> = ({ setCurrentPage, onLogout }) => {
           <NeoButton
             key={item.page}
             onClick={() => setCurrentPage(item.page)}
-            className={`w-full overflow-hidden ${
-              isOpen ? "justify-start" : ""
-            }`}
+            className={`w-full overflow-hidden ${isOpen ? "justify-start" : ""
+              }`}
             variant="secondary"
           >
             <item.icon
               className={`w-7 h-7 shrink-0 transition-all duration-200`}
             />
             <span
-              className={`${
-                isOpen ? "" : "hidden w-0"
-              } ml-2 transition-all duration-150`}
+              className={`${isOpen ? "" : "hidden w-0"
+                } ml-2 transition-all duration-150`}
             >
               {item.name}
             </span>
@@ -116,12 +112,12 @@ const Sidebar: React.FC<SidebarProps> = ({ setCurrentPage, onLogout }) => {
           className={`flex items-center gap-3 mb-4 ${isOpen ? "px-2" : "px-2"}`}
         >
           <div className="w-10 h-10 rounded-3xl border-2 flex items-center justify-center font-bold text-lg bg-gray-100 shrink-0 border-gray-300">
-            HJ
+            TC
           </div>
 
           {isOpen && (
             <div className="shrink-0">
-              <p className="font-bold">Hemraj Jadhav</p>
+              <p className="font-bold">Tanmay Chaudhari</p>
               <p className="text-xs text-gray-500">Investor</p>
             </div>
           )}
