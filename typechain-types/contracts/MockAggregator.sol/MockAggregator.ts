@@ -25,6 +25,7 @@ export interface MockAggregatorInterface extends Interface {
     nameOrSignature:
       | "decimals"
       | "description"
+      | "freezeUpdatedAt"
       | "getRoundData"
       | "latestRoundData"
       | "setAnswer"
@@ -35,6 +36,10 @@ export interface MockAggregatorInterface extends Interface {
   encodeFunctionData(
     functionFragment: "description",
     values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "freezeUpdatedAt",
+    values: [BigNumberish]
   ): string;
   encodeFunctionData(
     functionFragment: "getRoundData",
@@ -53,6 +58,10 @@ export interface MockAggregatorInterface extends Interface {
   decodeFunctionResult(functionFragment: "decimals", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "description",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "freezeUpdatedAt",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -114,6 +123,12 @@ export interface MockAggregator extends BaseContract {
 
   description: TypedContractMethod<[], [string], "view">;
 
+  freezeUpdatedAt: TypedContractMethod<
+    [timestamp: BigNumberish],
+    [void],
+    "nonpayable"
+  >;
+
   getRoundData: TypedContractMethod<
     [roundId: BigNumberish],
     [[bigint, bigint, bigint, bigint, bigint]],
@@ -144,6 +159,9 @@ export interface MockAggregator extends BaseContract {
   getFunction(
     nameOrSignature: "description"
   ): TypedContractMethod<[], [string], "view">;
+  getFunction(
+    nameOrSignature: "freezeUpdatedAt"
+  ): TypedContractMethod<[timestamp: BigNumberish], [void], "nonpayable">;
   getFunction(
     nameOrSignature: "getRoundData"
   ): TypedContractMethod<

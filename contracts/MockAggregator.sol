@@ -33,6 +33,8 @@ contract MockAggregator is AggregatorV3Interface {
     int256 private _answer;
     uint8 private _decimals;
     uint80 private _roundId;
+    // 0 = use block.timestamp (live); non-zero pins updatedAt for staleness testing
+    uint256 private _frozenUpdatedAt;
 
     constructor(uint8 decimals_, int256 initialAnswer) {
         _decimals = decimals_;
@@ -56,13 +58,7 @@ contract MockAggregator is AggregatorV3Interface {
         external
         view
         override
-        returns (
-            uint80,
-            int256,
-            uint256,
-            uint256,
-            uint80
-        )
+        returns (uint80, int256, uint256, uint256, uint80)
     {
         return (roundId, _answer, block.timestamp, block.timestamp, roundId);
     }
@@ -71,19 +67,20 @@ contract MockAggregator is AggregatorV3Interface {
         external
         view
         override
-        returns (
-            uint80,
-            int256,
-            uint256,
-            uint256,
-            uint80
-        )
+        returns (uint80, int256, uint256, uint256, uint80)
     {
-        return (_roundId, _answer, block.timestamp, block.timestamp, _roundId);
+        uint256 updatedAt = _frozenUpdatedAt != 0 ? _frozenUpdatedAt : block.timestamp;
+        return (_roundId, _answer, block.timestamp, updatedAt, _roundId);
     }
 
     function setAnswer(int256 newAnswer) external {
         _answer = newAnswer;
         _roundId++;
+    }
+
+    /// @notice Pin updatedAt to a specific past timestamp to simulate a stale feed.
+    /// @dev    Used only in tests — has no effect in production (where updatedAt = block.timestamp).
+    function freezeUpdatedAt(uint256 timestamp) external {
+        _frozenUpdatedAt = timestamp;
     }
 }
